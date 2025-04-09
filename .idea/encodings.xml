@@ -5,6 +5,8 @@
     <file url="file://$PROJECT_DIR$/rating-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/service/analytics-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/service/auth-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/service/data-common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/service/data-common/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/service/movie-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/service/notification-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/service/payment-service/src/main/java" charset="UTF-8" />

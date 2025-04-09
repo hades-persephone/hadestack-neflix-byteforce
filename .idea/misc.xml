@@ -17,11 +17,13 @@
         <option value="$PROJECT_DIR$/service/search-service/pom.xml" />
         <option value="$PROJECT_DIR$/service/payment-service/pom.xml" />
         <option value="$PROJECT_DIR$/service/notification-service/pom.xml" />
+        <option value="$PROJECT_DIR$/service/data-common/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
       <set>
         <option value="$PROJECT_DIR$/rating-service/pom.xml" />
+        <option value="$PROJECT_DIR$/service/data-common/pom.xml" />
       </set>
     </option>
   </component>

@@ -20,7 +20,7 @@
         <module>service/search-service</module>
         <module>service/stream-service</module>
         <module>service/user-service</module>
-        <module>service/data-common</module>
+        <module>service/base-data</module>
     </modules>
 
     <properties>
