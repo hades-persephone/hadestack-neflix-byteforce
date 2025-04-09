@@ -1,0 +1,15 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://keycloak:8080/realms/movie-realm
+          jwk-set-uri: http://keycloak:8080/realms/movie-realm/protocol/openid-connect/certs
+keycloak:
+  realm: movie-realm
+  auth-server-url: http://keycloak:8080
+  resource: movie-client
+  credentials:
+    secret: ${KEYCLOAK_CLIENT_SECRET:-movie_secret}  # Secret mặc định
+  public-client: false
+  principal-attribute: preferred_username

@@ -1,0 +1,13 @@
+spring:
+  kafka:
+    producer:
+      bootstrap-servers: kafka:9092
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: 1                    # Xác nhận từ 1 broker
+      retries: 3                 # Số lần thử lại nếu thất bại
+      batch-size: 16384          # Kích thước batch (16KB)
+      linger-ms: 1               # Thời gian chờ trước khi gửi (1ms)
+      buffer-memory: 33554432    # Bộ nhớ đệm (32MB)
+    properties:
+      max.request.size: 1048576  # Giới hạn kích thước message (1MB)

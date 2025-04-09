@@ -1,0 +1,327 @@
+version: '3.9'
+
+services:
+  # Zookeeper (Kafka dependency)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - backend
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - backend
+
+  # PostgreSQL
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ssh
+      POSTGRES_PASSWORD: ssh
+      POSTGRES_DB: byteforce
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # PostgreSQL Primary
+  postgres-primary:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: movie_db
+    volumes:
+      - postgres-primary-data:/var/lib/postgresql/data
+    command: >
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+    networks:
+      - app-network
+
+  # PostgreSQL Secondary
+  postgres-secondary:
+    image: postgres:16
+    ports:
+      - "5433:5432"  # Port khác để tránh xung đột
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: movie_db
+    volumes:
+      - postgres-secondary-data:/var/lib/postgresql/data
+    command: >
+      -c wal_level=replica
+      -c hot_standby=on
+      -c primary_conninfo='host=postgres-primary port=5432 user=admin password=password'
+      -c recovery_target_timeline='latest'
+    depends_on:
+      - postgres-primary
+    networks:
+      - app-network
+  # Redis
+  redis:
+    image: redis:7.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_pass}
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+
+  # Cassandra
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: "byteforce-cluster"
+      CASSANDRA_DC: "dc1"
+      CASSANDRA_RACK: "rack1"
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    networks:
+      - backend
+
+  # ElasticSearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=elastic_pass
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - backend
+
+  # Keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev
+    networks:
+      - backend
+
+  # Kong
+  kong-database:
+    image: postgres:16
+    container_name: kong-database
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong
+    volumes:
+      - kong_pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/grafana-config.yml:/etc/grafana/provisioning/datasources/datasource.yml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    depends_on:
+      - prometheus
+    networks:
+      - backend
+
+  # Microservices
+  auth-service:
+    build: ./service/auth-service
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/,file:/kafka/producer/,file:/redis/,file:/keycloak/
+      - DB_PASSWORD=password
+      - REDIS_PASSWORD=redis_pass
+      - KEYCLOAK_CLIENT_SECRET=movie_secret
+    volumes:
+      - ./config:/config
+      - ./kafka/producer:/kafka/producer
+      - ./config/redis:/redis
+      - ./keycloak:/keycloak
+    depends_on:
+      - postgres
+      - kafka
+      - keycloak
+      - redis
+    networks:
+      - backend
+
+  user-service:
+    build: ./service/user-service
+    ports:
+      - "8082:8080"
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/,file:/kafka/consumer/,file:/redis/,file:/cassandra/,file:/elasticsearch/
+      - DB_PASSWORD=password
+      - REDIS_PASSWORD=redis_pass
+      - CASSANDRA_PASSWORD=cassandra
+      - ELASTIC_PASSWORD=elastic_pass
+    volumes:
+      - ./config:/config
+      - ./kafka/consumer:/kafka/consumer
+      - ./config/redis:/redis
+      - ./config/cassandra:/cassandra
+      - ./config/elasticsearch:/elasticsearch
+    depends_on:
+      - postgres
+      - cassandra
+      - kafka
+      - redis
+    networks:
+      - backend
+
+  content-service:
+    build: ./service/content-service
+    ports:
+      - "8083:8080"
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/,file:/redis/,file:/elasticsearch/
+      - DB_PASSWORD=password
+      - REDIS_PASSWORD=redis_pass
+      - ELASTIC_PASSWORD=elastic_pass
+    volumes:
+      - ./config:/config
+      - ./config/redis:/redis
+      - ./config/elasticsearch:/elasticsearch
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - backend
+
+  streaming-service:
+    build: ./service/streaming-service
+    ports:
+      - "8084:8080"
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/,file:/redis/
+      - REDIS_PASSWORD=redis_pass
+    volumes:
+      - ./config:/config
+      - ./config/redis:/redis
+    depends_on:
+      - redis
+    networks:
+      - backend
+
+  analytics-service:
+    build: ./service/analytics-service
+    ports:
+      - "8085:8080"
+    environment:
+      - SPRING_CONFIG_ADDITIONAL_LOCATION=file:/config/,file:/kafka/consumer/,file:/redis/,file:/cassandra/,file:/monitoring/zipkin/
+      - REDIS_PASSWORD=redis_pass
+      - CASSANDRA_PASSWORD=cassandra
+    volumes:
+      - ./config:/config
+      - ./kafka/consumer:/kafka/consumer
+      - ./config/redis:/redis
+      - ./config/cassandra:/cassandra
+      - ./monitoring/zipkin:/monitoring/zipkin
+    depends_on:
+      - cassandra
+      - kafka
+      - redis
+      - zipkin
+    networks:
+      - backend
+
+  kong:
+    image: kong/kong-gateway:3.6.0.0
+    container_name: kong
+    depends_on:
+      - kong-database
+      - auth-service
+      - user-service
+      - content-service
+      - streaming-service
+      - analytics-service
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    volumes:
+       - ./kong/kong-config.yml
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
+    networks:
+      - backend
+  zipkin:
+    image: openzipkin/zipkin:2.24
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+  redis_data:
+  cassandra_data:
+  elasticsearch_data:
+  kong_pgdata:
+
+networks:
+  backend:
+    driver: bridge

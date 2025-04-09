@@ -1,0 +1,14 @@
+spring:
+  kafka:
+    consumer:
+      bootstrap-servers: kafka:9092
+      group-id: movie-consumer-group
+      auto-offset-reset: earliest    # Đọc từ đầu nếu không có offset
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: 500          # Số record tối đa mỗi lần poll
+      fetch-min-size: 1              # Kích thước tối thiểu dữ liệu fetch (1 byte)
+      fetch-max-wait: 500            # Thời gian chờ tối đa khi fetch (500ms)
+    properties:
+      session.timeout.ms: 30000      # Timeout phiên (30 giây)
+      heartbeat.interval.ms: 10000   # Khoảng thời gian gửi heartbeat (10 giây)

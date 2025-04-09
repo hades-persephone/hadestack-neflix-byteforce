@@ -1,0 +1,16 @@
+spring:
+  data:
+    cassandra:
+      contact-points: cassandra
+      port: 9042
+      keyspace-name: movie_keyspace
+      username: cassandra                         # Mặc định của image cassandra
+      password: ${CASSANDRA_PASSWORD:-cassandra}  # Mật khẩu mặc định: cassandra
+      schema-action: CREATE_IF_NOT_EXISTS         # Tự động tạo keyspace nếu chưa có
+      request:
+        timeout: 10s                              # Timeout cho request (10 giây)
+        consistency: QUORUM                       # Độ nhất quán
+      pool:
+        max-connections: 10                       # Số kết nối tối đa
+        max-pending-requests: 1000                # Số request tối đa chờ xử lý
+      local-datacenter: datacenter1               # Tên datacenter (mặc định của Cassandra)

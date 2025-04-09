@@ -1,0 +1,55 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: content-service
+    url: http://content-service:8080
+    routes:
+      - name: content-service-route
+        paths:
+          - "/api/movies"
+        methods:
+          - GET
+          - POST
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+          limit_by: consumer
+      - name: jwt
+        config:
+          key_claim_name: "kid"
+          secret_is_base64: false
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Service-Name:content-service"
+      - name: prometheus
+        config: {}
+      - name: file-log
+        config:
+          path: /var/log/kong/content-service.log
+
+consumers:
+  - username: movie-user
+    custom_id: "user123"
+    jwt_secrets:
+      - key: "user123-key"
+        secret: ${JWT_SECRET}
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - OPTIONS
+      headers:
+        - Content-Type
+        - Authorization
+      credentials: true

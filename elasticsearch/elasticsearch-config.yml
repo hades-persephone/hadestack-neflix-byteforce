@@ -1,0 +1,9 @@
+spring:
+  elasticsearch:
+    uris: http://elasticsearch:9200
+    username: elastic
+    password: ${ELASTIC_PASSWORD:-elastic_pass}  # Mật khẩu mặc định: elastic_pass
+    connection-timeout: 5s                     # Timeout kết nối (5 giây)
+    socket-timeout: 30s                        # Timeout socket (30 giây)
+    restclient:
+      max-retry-timeout: 60s                   # Thời gian thử lại tối đa

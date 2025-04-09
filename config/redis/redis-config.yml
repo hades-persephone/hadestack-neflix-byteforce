@@ -1,0 +1,22 @@
+spring:
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: ${REDIS_PASSWORD}  # Mật khẩu Redis (nếu có)
+      database: 0                  # Database index (mặc định là 0)
+      timeout: 2000ms              # Timeout kết nối (2 giây)
+      lettuce:
+        pool:
+          max-active: 8           # Số kết nối tối đa
+          max-idle: 8             # Số kết nối idle tối đa
+          min-idle: 0             # Số kết nối idle tối thiểu
+          max-wait: -1ms          # Thời gian chờ tối đa (-1 = vô hạn)
+
+  cache:
+    type: redis                   # Sử dụng Redis làm cache
+    redis:
+      time-to-live: 3600000       # Thời gian sống của cache (1 giờ = 3600 giây)
+      cache-null-values: false    # Không cache giá trị null
+      key-prefix: "movie_cache:"  # Tiền tố cho key cache
+      use-key-prefix: true        # Sử dụng tiền tố
