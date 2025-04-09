@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.watch</groupId>
+    <artifactId>hadestack-neflix-byteforce</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <modules>
+        <module>graphql-gateway</module>
+        <module>service/movie-service</module>
+        <module>service/auth-service</module>
+        <module>service/analytics-service</module>
+        <module>service/notification-service</module>
+        <module>service/payment-service</module>
+        <module>service/rating-service</module>
+        <module>service/recommendation-service</module>
+        <module>service/search-service</module>
+        <module>service/stream-service</module>
+        <module>service/user-service</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+</project>
