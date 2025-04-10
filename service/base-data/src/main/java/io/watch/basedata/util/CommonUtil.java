@@ -11,8 +11,7 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
-import java.util.UUID;
+import java.util.*;
 
 @UtilityClass
 public class CommonUtil {
@@ -77,6 +76,42 @@ public class CommonUtil {
 
     public boolean isNullOrEmpty(String str) {
         return str == null || str.trim().isEmpty();
+    }
+
+
+    public boolean isNullOrEmpty(Collection<?> collection) {
+        return collection == null || collection.isEmpty();
+    }
+
+    public boolean isNullOrEmpty(Map<?, ?> map) {
+        return map == null || map.isEmpty();
+    }
+
+    public boolean isNullOrEmpty(Object[] array) {
+        return array == null || array.length == 0;
+    }
+
+    public boolean isEmpty(Object obj) {
+        if(obj == null) {
+            return true;
+        } else if(obj instanceof String) {
+            return ((String) obj).trim().isEmpty();
+        } else if(obj instanceof Collection) {
+            return isNullOrEmpty((Collection<?>) obj);
+        }
+        return false;
+    }
+
+    public boolean isNullOrEmpty(Optional<?> optional) {
+        return optional == null || optional.isEmpty();
+    }
+
+    public boolean isNull(Object obj) {
+        return obj == null;
+    }
+
+    public boolean isNotNull(Object obj) {
+        return obj != null;
     }
 
     public boolean isNumeric(String str) {

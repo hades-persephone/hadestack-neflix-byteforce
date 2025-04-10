@@ -1,0 +1,62 @@
+package io.watch.movie.response;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
+
+import java.util.UUID;
+
+@Component
+public class ResponseBuilder {
+    public <T> ResponseEntity<ApiResponse<T>> success(T data, HttpServletRequest request) {
+        return ResponseEntity.ok(
+                new ApiResponse<T>() {{
+                    setStatus("success");
+                    setData(data);
+                    setMeta(buildMeta(request));
+                }}
+        );
+    }
+
+    public ResponseEntity<ApiResponse<Object>> successMessage(String message, HttpServletRequest request) {
+        return ResponseEntity.ok(
+                new ApiResponse<>() {{
+                    setStatus("success");
+                    setMessage(message);
+                    setMeta(buildMeta(request));
+                }}
+        );
+    }
+
+    // Warning
+    public ResponseEntity<ApiResponse<Object>> warning(String message, Object details, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.OK).body(
+                new ApiResponse<>() {{
+                    setStatus("warning");
+                    setMessage(message);
+                    setData(details);
+                    setMeta(buildMeta(request));
+                }}
+        );
+    }
+
+    public ResponseEntity<ApiResponse<Object>> error(String code, String message, Object details, HttpServletRequest request, HttpStatus status) {
+        return ResponseEntity.status(status).body(
+                new ApiResponse<>() {{
+                    setStatus("error");
+                    setError(new ErrorDetail(code, message, details));
+                    setMeta(buildMeta(request));
+                }}
+        );
+    }
+
+    private Meta buildMeta(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String requestId = request.getHeader("X-Request-ID");
+        if (requestId == null || requestId.isEmpty()) {
+            requestId = UUID.randomUUID().toString();
+        }
+        return new Meta(requestId, path);
+    }
+}
