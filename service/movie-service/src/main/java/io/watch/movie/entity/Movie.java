@@ -151,13 +151,11 @@ public class Movie {
     @Schema(description  = "Runtime in seconds", example = "8880")
     private Integer runtimeSeconds;
 
-    @ManyToOne
-    @JoinColumn(name = "created_by")
-    private User createdBy;
+    @Column(name = "created_by")
+    private UUID createdBy;
 
-    @ManyToOne
-    @JoinColumn(name = "updated_by")
-    private User updatedBy;
+    @Column(name = "updated_by")
+    private UUID updatedBy;
 
     @ManyToMany
     @JoinTable(name = "movies_categories",

@@ -1,6 +1,5 @@
-package io.watch.movie.entity.substraction;
+package io.watch.user.entity.substraction;
 
 public enum AccountStatus {
     ACTIVE, INACTIVE, SUSPENDED, DELETED
 }
-

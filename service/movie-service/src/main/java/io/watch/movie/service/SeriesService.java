@@ -1,10 +1,6 @@
 package io.watch.movie.service;
 
-import io.watch.movie.dto.request.EpisodeRequest;
-import io.watch.movie.dto.request.SeasonRequest;
 import io.watch.movie.dto.request.SeriesRequest;
-import io.watch.movie.dto.response.EpisodeResponse;
-import io.watch.movie.dto.response.SeasonResponse;
 import io.watch.movie.dto.response.SeriesResponse;
 
 import java.util.List;

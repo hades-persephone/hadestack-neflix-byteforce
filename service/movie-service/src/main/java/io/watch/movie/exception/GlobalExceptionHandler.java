@@ -27,12 +27,12 @@ public class GlobalExceptionHandler {
     private ResponseBuilder responseBuilder;
 
     @ExceptionHandler(MovieNotFoundException.class)
-    public ResponseEntity<ApiResponse<Object>> handleMovieNotFound(MovieNotFoundException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> handleMovieNotFound(MovieNotFoundException ex, HttpServletRequest request) {
         return responseBuilder.error("MOVIE_NOT_FOUND", ex.getMessage(), null, request, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Object>> handleValidationErrors(
+    public ResponseEntity<ApiResponseEntity<Object>> handleValidationErrors(
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
 
@@ -52,7 +52,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Object>> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {
         BindingResult result = ex.getBindingResult();
         FieldError fieldError = result.getFieldError();
         Map<String, Object> details = new HashMap<>();
@@ -64,27 +64,27 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<Object>> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
         return responseBuilder.error("BAD_REQUEST", "Malformed JSON request", null, request, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiResponse<Object>> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return responseBuilder.error("ACCESS_DENIED", "You do not have permission", null, request, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ApiResponse<Object>> handleNotFound(NoHandlerFoundException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> handleNotFound(NoHandlerFoundException ex, HttpServletRequest request) {
         return responseBuilder.error("NOT_FOUND", "API endpoint not found", null, request, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(CustomAppException.class)
-    public ResponseEntity<ApiResponse<Object>> handleCustomAppException(CustomAppException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> handleCustomAppException(CustomAppException ex, HttpServletRequest request) {
         return responseBuilder.error(ex.getCode(), ex.getMessage(), ex.getDetails(), request, ex.getStatus());
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleOtherExceptions(Exception ex, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> handleOtherExceptions(Exception ex, HttpServletRequest request) {
         ex.printStackTrace();
         return responseBuilder.error("INTERNAL_SERVER_ERROR", "Unexpected error occurred", null, request, HttpStatus.INTERNAL_SERVER_ERROR);
     }

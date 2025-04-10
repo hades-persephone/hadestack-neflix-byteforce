@@ -9,9 +9,9 @@ import java.util.UUID;
 
 @Component
 public class ResponseBuilder {
-    public <T> ResponseEntity<ApiResponse<T>> success(T data, HttpServletRequest request) {
+    public <T> ResponseEntity<ApiResponseEntity<T>> success(T data, HttpServletRequest request) {
         return ResponseEntity.ok(
-                new ApiResponse<T>() {{
+                new ApiResponseEntity<T>() {{
                     setStatus("success");
                     setData(data);
                     setMeta(buildMeta(request));
@@ -19,9 +19,9 @@ public class ResponseBuilder {
         );
     }
 
-    public ResponseEntity<ApiResponse<Object>> successMessage(String message, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> successMessage(String message, HttpServletRequest request) {
         return ResponseEntity.ok(
-                new ApiResponse<>() {{
+                new ApiResponseEntity<>() {{
                     setStatus("success");
                     setMessage(message);
                     setMeta(buildMeta(request));
@@ -30,9 +30,9 @@ public class ResponseBuilder {
     }
 
     // Warning
-    public ResponseEntity<ApiResponse<Object>> warning(String message, Object details, HttpServletRequest request) {
+    public ResponseEntity<ApiResponseEntity<Object>> warning(String message, Object details, HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.OK).body(
-                new ApiResponse<>() {{
+                new ApiResponseEntity<>() {{
                     setStatus("warning");
                     setMessage(message);
                     setData(details);
@@ -41,9 +41,9 @@ public class ResponseBuilder {
         );
     }
 
-    public ResponseEntity<ApiResponse<Object>> error(String code, String message, Object details, HttpServletRequest request, HttpStatus status) {
+    public ResponseEntity<ApiResponseEntity<Object>> error(String code, String message, Object details, HttpServletRequest request, HttpStatus status) {
         return ResponseEntity.status(status).body(
-                new ApiResponse<>() {{
+                new ApiResponseEntity<>() {{
                     setStatus("error");
                     setError(new ErrorDetail(code, message, details));
                     setMeta(buildMeta(request));

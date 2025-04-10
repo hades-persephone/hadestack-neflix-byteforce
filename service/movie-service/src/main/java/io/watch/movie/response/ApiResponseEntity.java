@@ -3,7 +3,7 @@ package io.watch.movie.response;
 import lombok.Data;
 
 @Data
-public class ApiResponse<T> {
+public class ApiResponseEntity<T> {
     private String status;
     private String message;
     private T data;
