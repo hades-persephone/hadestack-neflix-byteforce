@@ -19,8 +19,9 @@ public abstract class EntityBase {
     @Column(updatable = false, nullable = false, columnDefinition = "UUID DEFAULT gen_random_uuid()")
     private UUID id;
 
-    @Column(name = "is_active")
-    private Boolean isActive = true;
+    @Column(name = "is_available")
+    @Schema(description  = "Availability flag", example = "true")
+    private Boolean isAvailable = true;
 
     @Column(name = "created_at", updatable = false)
     @CreationTimestamp
