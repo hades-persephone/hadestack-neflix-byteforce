@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package movie;
+
+option java_package = "io.watch.grpc.movie";
+option java_multiple_files = true;
+option java_outer_classname = "MovieProto";
+
+service MovieService {
+  rpc GetMovie(GetMovieRequest) returns (MovieResponse);
+  rpc ListMovies(ListMoviesRequest) returns (MoviesResponse);
+}
+
+message GetMovieRequest {
+  int64 movieId = 1;
+}
+
+message MovieResponse {
+  int64 movieId = 1;
+  string title = 2;
+  string description = 3;
+  string genre = 4;
+  string streamingUrl = 5;
+}
+
+message ListMoviesRequest {
+  string genre = 1;
+  string query = 2;
+  int32 page = 3;
+  int32 size = 4;
+}
+
+message MoviesResponse {
+  repeated MovieResponse movies = 1;
+}

@@ -21,6 +21,7 @@
         <module>service/stream-service</module>
         <module>service/user-service</module>
         <module>service/base-data</module>
+        <module>service/grpc_interface</module>
     </modules>
 
     <properties>

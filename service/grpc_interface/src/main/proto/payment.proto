@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "iio.watch.grpc.payment";
+option java_outer_classname = "PaymentProto";
+
+package payment;
+
+service PaymentService {
+  rpc ProcessPayment (PaymentRequest) returns (PaymentResponse) {}
+}
+
+message PaymentRequest {
+  string orderId = 1;
+  double amount = 2;
+  string currency = 3;
+}
+
+message PaymentResponse {
+  bool success = 1;
+  string transactionId = 2;
+  string errorMessage = 3;
+}
