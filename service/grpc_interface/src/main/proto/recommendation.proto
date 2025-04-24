@@ -1,13 +1,15 @@
 syntax = "proto3";
 
-package recommendation;
-
 option java_package = "io.watch.grpc.recommendation";
 option java_multiple_files = true;
 option java_outer_classname = "PaymentProto";
 
+package recommendation;
+
 service RecommendationService {
+  rpc RecordBehavior(RecordBehaviorRequest) returns (RecordBehaviorResponse);
   rpc GetRecommendations(GetRecommendationsRequest) returns (RecommendationsResponse);
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
 }
 
 message GetRecommendationsRequest {
@@ -23,4 +25,34 @@ message MovieRecommendation {
   int64 movieId = 1;
   string title = 2;
   double score = 3;
+}
+
+message RecordBehaviorRequest {
+  int64 userId = 1;
+  int64 profileId = 2;
+  int64 movieId = 3;
+  string eventType = 4;
+  int64 timestamp = 5;
+}
+
+message RecordBehaviorResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message Recommendation {
+  int64 movieId = 1;
+  string title = 2;
+  double score = 3;
+}
+
+message SendNotificationRequest {
+  int64 userId = 1;
+  string type = 2;
+  string content = 3;
+}
+
+message SendNotificationResponse {
+  bool success = 1;
+  string message = 2;
 }

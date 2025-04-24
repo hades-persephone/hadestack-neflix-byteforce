@@ -24,12 +24,7 @@ import java.util.UUID;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @EqualsAndHashCode(callSuper = false)
 @Schema(description = "Movie entity representing a single movie")
-public class Movie {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id")
-    @Schema(description  = "Unique identifier of the movie")
-    private UUID id;
+public class Movie extends EntityBase {
 
     @NotBlank(message = "Title cannot be blank")
     @Size(max = 255, message = "Title cannot exceed 255 characters")
@@ -112,29 +107,10 @@ public class Movie {
     @Schema(description  = "Country of origin", example = "USA")
     private String countryOfOrigin;
 
-    @Column(name = "is_available")
-    @Schema(description  = "Availability flag", example = "true")
-    private Boolean isAvailable = true;
-
     @Min(value  = 0, message = "View count cannot be negative")
     @Column(name = "view_count")
     @Schema(description  = "View count", example = "1000")
     private Long viewCount = 0L;
-
-    @Column(name = "created_at")
-    @CreationTimestamp
-    @Schema(description  = "Creation timestamp", example = "2025-04-10T10:00:00Z")
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    @UpdateTimestamp
-    @Schema(description  = "Update timestamp", example = "2025-04-10T12:00:00Z")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "deleted_at")
-    @UpdateTimestamp
-    @Schema(description  = "Deletion timestamp", example = "null")
-    private LocalDateTime deletedAt;
 
     @Size(max = 255, message = "Stream URL cannot exceed 255 characters")
     @Column(name = "stream_url")
@@ -150,12 +126,6 @@ public class Movie {
     @Column(name = "runtime_seconds")
     @Schema(description  = "Runtime in seconds", example = "8880")
     private Integer runtimeSeconds;
-
-    @Column(name = "created_by")
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
 
     @ManyToMany
     @JoinTable(name = "movies_categories",

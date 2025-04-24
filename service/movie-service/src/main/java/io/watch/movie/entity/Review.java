@@ -15,12 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "reviews")
 @Schema(description = "Review entity representing a user review")
-public class Review {
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", updatable = false, nullable = false, columnDefinition = "UUID DEFAULT gen_random_uuid()")
-    @Schema(description = "Unique identifier of the review", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID id;
+public class Review extends EntityBase {
 
     @NotNull(message = "User ID cannot be null")
     @Column(name = "user_id")
@@ -43,18 +38,6 @@ public class Review {
     @Column(name = "comment")
     @Schema(description = "Review comment", example = "Great movie!")
     private String comment;
-
-    @Column(name = "created_at")
-    @Schema(description = "Creation timestamp", example = "2025-04-10T10:00:00Z")
-    private Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at")
-    @Schema(description = "Update timestamp", example = "2025-04-10T12:00:00Z")
-    private Instant updatedAt;
-
-    @Column(name = "deleted_at")
-    @Schema(description = "Deletion timestamp", example = "null")
-    private Instant deletedAt;
 
     @Min(value = 0, message = "Likes count cannot be negative")
     @Column(name = "likes_count")
@@ -85,11 +68,4 @@ public class Review {
     @Schema(description = "Visibility of the review", example = "PUBLIC")
     private Visibility visibility = Visibility.PUBLIC;
 
-    @Column(name = "created_by")
-    @Schema(description = "ID of user who created this record", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    @Schema(description = "ID of user who updated this record", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID updatedBy;
 }

@@ -19,12 +19,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "playlists")
 @Schema(description = "Playlist entity representing a user playlist")
-public class Playlist {
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", updatable = false, nullable = false, columnDefinition = "UUID DEFAULT gen_random_uuid()")
-    @Schema(description = "Unique identifier of the playlist", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID id;
+public class Playlist extends EntityBase {
 
     @NotNull(message = "User ID cannot be null")
     @Column(name = "user_id")
@@ -45,18 +40,6 @@ public class Playlist {
     @Column(name = "is_public")
     @Schema(description = "Whether the playlist is public", example = "false")
     private Boolean isPublic = false;
-
-    @Column(name = "created_at")
-    @Schema(description = "Creation timestamp", example = "2025-04-10T10:00:00Z")
-    private Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at")
-    @Schema(description = "Update timestamp", example = "2025-04-10T12:00:00Z")
-    private Instant updatedAt;
-
-    @Column(name = "deleted_at")
-    @Schema(description = "Deletion timestamp", example = "null")
-    private Instant deletedAt;
 
     @Size(max = 255, message = "Cover image URL cannot exceed 255 characters")
     @Column(name = "cover_image_url")
@@ -91,11 +74,4 @@ public class Playlist {
     @Schema(description = "Order number", example = "1")
     private Integer orderNumber;
 
-    @Column(name = "created_by")
-    @Schema(description = "ID of user who created this record", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    @Schema(description = "ID of user who updated this record", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID updatedBy;
 }

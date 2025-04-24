@@ -17,12 +17,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "directors")
 @Schema(description = "Director entity representing a director")
-public class Director {
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", updatable = false, nullable = false, columnDefinition = "UUID DEFAULT gen_random_uuid()")
-    @Schema(description = "Unique identifier of the director", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID id;
+public class Director extends EntityBase {
 
     @NotBlank(message = "Full name cannot be blank")
     @Size(min = 2, max = 100, message = "Full name must be between 2 and 100 characters")
@@ -50,25 +45,6 @@ public class Director {
     @Schema(description = "Profile picture URL", example = "https://example.com/nolan.jpg")
     private String profilePictureUrl;
 
-    @Column(name = "is_active")
-    @Schema(description = "Whether the director is active", example = "true")
-    private Boolean isActive = true;
-
-    @Column(name = "created_at")
-    @CreationTimestamp
-    @Schema(description = "Creation timestamp", example = "2025-04-10T10:00:00Z")
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    @UpdateTimestamp
-    @Schema(description = "Update timestamp", example = "2025-04-10T12:00:00Z")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "deleted_at")
-    @UpdateTimestamp
-    @Schema(description = "Deletion timestamp", example = "null")
-    private LocalDateTime deletedAt;
-
     @Size(max = 255, message = "IMDb profile URL cannot exceed 255 characters")
     @Column(name = "imdb_profile_url")
     @Schema(description = "IMDb profile URL", example = "https://imdb.com/name/nm0634240")
@@ -94,11 +70,4 @@ public class Director {
     @Schema(description = "Directing style", example = "Non-linear storytelling")
     private String style;
 
-    @Column(name = "created_by")
-    @Schema(description = "ID of user who created this record", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    @Schema(description = "ID of user who updated this record", example = "550e8400-e29b-41d4-a716-446655440000")
-    private UUID updatedBy;
 }

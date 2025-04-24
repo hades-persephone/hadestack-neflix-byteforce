@@ -16,12 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "audit_logs")
 @Schema(description = "Audit log entity to track changes to records")
-public class AuditLog {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id")
-    @Schema(description = "Unique identifier of the audit log", example = "1")
-    private UUID id;
+public class AuditLog extends EntityBase {
 
     @NotBlank(message = "Entity name cannot be blank")
     @Size(max = 50, message = "Entity name cannot exceed 50 characters")

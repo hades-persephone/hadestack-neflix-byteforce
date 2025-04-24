@@ -1,9 +1,5 @@
 package io.watch.auth.config;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtParser;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import io.watch.auth.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,9 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -38,17 +33,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             try {
-                Claims claims = jwtUtil.extractClaims(jwtSecret);
-
-                String username = claims.getSubject();
-                List<String> roles = claims.get("roles", List.class);
+                String username = jwtUtil.extractUsername(token);
+                Long userId = jwtUtil.getUserIdFromToken(token);
+                List<String> roles = jwtUtil.getRolesFromToken(token);
+                List<String> permissions = jwtUtil.getPermissionsFromToken(token);
+                String scope = jwtUtil.getScopeFromToken(token);
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    List<SimpleGrantedAuthority> authorities = roles != null
-                            ? roles.stream().map(SimpleGrantedAuthority::new).collect(Collectors.toList())
-                            : List.of();
+                    List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                    if (roles != null) {
+                        authorities.addAll(roles.stream().map(SimpleGrantedAuthority::new).toList());
+                    }
+                    if (permissions != null) {
+                        authorities.addAll(permissions.stream().map(SimpleGrantedAuthority::new).toList());
+                    }
+                    if (scope != null) {
+                        authorities.add(new SimpleGrantedAuthority("SCOPE_" + scope));
+                    }
+                    CustomUserPrincipal principal = new CustomUserPrincipal(username, userId);
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            username, null, authorities);
+                            principal, null, authorities);
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }

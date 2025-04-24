@@ -11,12 +11,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "subtitles")
 @Schema(description = "Subtitle entity representing a subtitle file")
-public class Subtitle {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id")
-    @Schema(description = "Unique identifier of the subtitle", example = "1")
-    private UUID id;
+public class Subtitle extends EntityBase {
 
     @NotBlank(message = "Language cannot be blank")
     @Size(min = 2, max = 50, message = "Language must be between 2 and 50 characters")

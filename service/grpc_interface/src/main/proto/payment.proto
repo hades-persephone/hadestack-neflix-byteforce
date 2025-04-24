@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 option java_multiple_files = true;
-option java_package = "iio.watch.grpc.payment";
+option java_package = "io.watch.grpc.payment";
 option java_outer_classname = "PaymentProto";
 
 package payment;

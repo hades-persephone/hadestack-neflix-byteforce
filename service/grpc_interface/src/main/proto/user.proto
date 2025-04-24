@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package userservice;
+
+option java_package = "io.watch.grpc.user";
+option java_multiple_files = true;
+option java_outer_classname = "UserProto";
+
+service UserService {
+  // Get user details by ID
+  rpc GetUser(GetUserRequest) returns (UserResponse);
+
+  // Get user by username (used by auth-service)
+  rpc GetUserByUsername(GetUserByUsernameRequest) returns (UserResponse);
+
+  // Get profiles for a user
+  rpc GetUserProfiles(GetProfilesRequest) returns (ProfilesResponse);
+
+  // Create a new profile for a user
+  rpc CreateProfile(CreateProfileRequest) returns (ProfileResponse);
+
+  // Add a service to a profile
+  rpc AddServiceToProfile(AddServiceToProfileRequest) returns (ProfileResponse);
+}
+
+message GetUserRequest {
+  int64 userId = 1;
+}
+
+message GetUserByUsernameRequest {
+  string username = 1;
+}
+
+message UserResponse {
+  int64 userId = 1;
+  string username = 2;
+  string email = 3;
+  repeated string roles = 4;
+  repeated string permissions = 5;
+}
+
+message GetProfilesRequest {
+  int64 userId = 1;
+}
+
+message ProfilesResponse {
+  repeated ProfileResponse profiles = 1;
+}
+
+message CreateProfileRequest {
+  int64 userId = 1;
+  string profileName = 2;
+}
+
+message AddServiceToProfileRequest {
+  int64 userId = 1;
+  int64 profileId = 2;
+  int64 serviceId = 3;
+}
+
+message ProfileResponse {
+  int64 profileId = 1;
+  string name = 2;
+  repeated int64 serviceIds = 3;
+}
