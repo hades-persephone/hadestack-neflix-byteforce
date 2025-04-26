@@ -1,0 +1,10 @@
+{
+  "mappings": {
+    "properties": {
+      "movieId": { "type": "long" },
+      "title": { "type": "text", "analyzer": "standard" },
+      "description": { "type": "text", "analyzer": "standard" },
+      "genre": { "type": "keyword" }
+    }
+  }
+}

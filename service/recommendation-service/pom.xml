@@ -75,6 +75,10 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.watch.grpc</groupId>
             <artifactId>grpc_interface</artifactId>
             <version>1.0-SNAPSHOT</version>
