@@ -1,5 +1,6 @@
 package io.watch.auth.service.impl;
 
+import com.google.common.hash.BloomFilter;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.watch.auth.dto.AuthResponse;
 import io.watch.auth.dto.LoginRequest;
@@ -19,18 +20,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
-import java.util.Date;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,7 +52,8 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final WebClient userServiceWebClient;
     private final RefreshTokenRepository refreshTokenRepository;
-
+    private final BloomFilter<String> usernameBloomFilter;
+    private final BloomFilter<String> emailBloomFilter;
 
     @Value("${jwt.refresh-token-expiration}")
     private Long refreshTokenExpiration;
@@ -87,7 +90,6 @@ public class AuthServiceImpl implements AuthService {
                         response.getUsername(), response.getUserId()))
                 .doOnError(e -> logger.error("Login failed for username={}: {}", loginRequest.getUsername(), e.getMessage()));
     }
-
 
     @Override
     public Mono<AuthResponse> refreshToken(RefreshTokenRequest request) {
@@ -138,58 +140,81 @@ public class AuthServiceImpl implements AuthService {
                 });
     }
 
-    @Override
-    public AuthResponse register(RegisterRequest registerRequest) {
-        // Check if the username or email already exists
-        if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            throw new RuntimeException("Username is already taken");
-        }
+    @Override@Transactional
+    public Mono<AuthResponse> register(RegisterRequest request) {
+        return Mono.defer(() -> {
+                    Mono<Void> checkUsername = Mono.empty();
+                    Mono<Void> checkEmail = Mono.empty();
 
-        if (userRepository.existsByEmail(registerRequest.getEmail())) {
-            throw new RuntimeException("Email is already in use");
-        }
+                    if (usernameBloomFilter.mightContain(request.getUsername())) {
+                        checkUsername = Mono.fromCallable(() -> userRepository.findByUsername(request.getUsername()))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .flatMap(opt -> opt.isPresent()
+                                        ? Mono.error(new RuntimeException("Username already exists"))
+                                        : Mono.empty());
+                    }
 
-        // Create a new user
-        User user = new User();
-        user.setUsername(registerRequest.getUsername());
-        user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
-        user.setEmail(registerRequest.getEmail());
-        user.setFullName(registerRequest.getFullName());
+                    if (emailBloomFilter.mightContain(request.getEmail())) {
+                        checkEmail = Mono.fromCallable(() -> userRepository.findByEmail(request.getEmail()))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .flatMap(opt -> opt.isPresent()
+                                        ? Mono.error(new RuntimeException("Email already exists"))
+                                        : Mono.empty());
+                    }
 
-        // Assign the USER role by default
-        Role userRole = roleRepository.findByName("USER")
-                .orElseThrow(() -> new RuntimeException("Default role not found"));
-        user.addRole(userRole);
+                    return Mono.when(checkUsername, checkEmail)
+                            .then(Mono.defer(() -> {
+                                User user = new User();
+                                user.setUsername(request.getUsername());
+                                user.setPassword(passwordEncoder.encode(request.getPassword()));
+                                user.setEmail(request.getEmail());
+                                user.setFullName(request.getFullName());
 
-        // Save the user
-        user = userRepository.save(user);
+                                List<String> roleNames = request.getRoles() != null && !request.getRoles().isEmpty()
+                                        ? request.getRoles()
+                                        : Collections.singletonList("ROLE_USER");
+                                List<Role> roles = roleRepository.findByNameIn(roleNames);
+                                if (roles.isEmpty()) {
+                                    return Mono.error(new RuntimeException("No valid roles provided"));
+                                }
+                                user.setRoles(new HashSet<>(roles));
 
-        // Get the roles and permissions
-        List<String> roles = user.getRoles().stream()
-                .map(Role::getName)
-                .collect(Collectors.toList());
-        
-        List<String> permissions = user.getRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> permission.getName())
-                .distinct()
-                .collect(Collectors.toList());
-        
-        // Generate the JWT token
-        String token = jwtService.generateToken(user.getUsername(), user.getId(), roles, permissions);
-        
-        // Create and return the AuthResponse
-        return AuthResponse.builder()
-                .userId(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .token(token)
-                .roles(roles)
-                .permissions(permissions)
-                .build();
+                                return Mono.fromCallable(() -> userRepository.save(user))
+                                        .subscribeOn(Schedulers.boundedElastic())
+                                        .doOnNext(savedUser -> {
+                                            usernameBloomFilter.put(savedUser.getUsername());
+                                            emailBloomFilter.put(savedUser.getEmail());
+                                        })
+                                        .flatMap(savedUser -> {
+                                            List<String> roleNamesList = savedUser.getRoles().stream()
+                                                    .map(Role::getName)
+                                                    .toList();
+
+                                            List<String> permissions = savedUser.getRoles().stream()
+                                                    .flatMap(role -> role.getPermissions().stream())
+                                                    .map(Permission::getName)
+                                                    .distinct()
+                                                    .toList();
+
+                                            String accessToken = jwtService.generateToken(savedUser.getUsername(), savedUser.getId(), roleNamesList, permissions);
+                                            String refreshToken = jwtService.generateRefreshToken(savedUser.getUsername(), savedUser.getId(), roleNamesList, permissions);
+
+                                            RefreshToken reToken = new RefreshToken();
+                                            reToken.setToken(refreshToken);
+                                            reToken.setUser(savedUser);
+                                            reToken.setExpiryDate(LocalDateTime.now().plusDays(7));
+
+                                            return Mono.fromCallable(() -> refreshTokenRepository.save(reToken))
+                                                    .subscribeOn(Schedulers.boundedElastic())
+                                                    .then(Mono.just(buildAuthResponse(savedUser, accessToken, refreshToken, 900_000L))); // 15 mins
+                                        });
+                            }));
+                })
+                .doOnSuccess(response -> logger.info("User registered: username={}, userId={}", response.getUsername(), response.getUserId()))
+                .doOnError(e -> logger.error("Registration failed for username={}: {}", request.getUsername(), e.getMessage()));
     }
-    
+
+
     @Override
     public boolean validateToken(String token) {
         try {

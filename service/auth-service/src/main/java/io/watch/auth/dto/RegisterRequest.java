@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * DTO for user registration requests.
  */
@@ -29,4 +31,6 @@ public class RegisterRequest {
     
     @Size(max = 100, message = "Full name cannot exceed 100 characters")
     private String fullName;
+
+    private List<String> roles;
 }

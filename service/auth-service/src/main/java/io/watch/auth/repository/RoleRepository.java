@@ -4,6 +4,7 @@ import io.watch.auth.entity.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -27,4 +28,6 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
      * @return true if a role exists with the name, false otherwise
      */
     boolean existsByName(String name);
+
+    List<Role> findByNameIn(List<String> roleNames);
 }

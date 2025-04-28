@@ -2,6 +2,7 @@ package io.watch.movie.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
@@ -11,8 +12,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @MappedSuperclass
-@Getter
-@Setter
+@Data
 public abstract class EntityBase {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)

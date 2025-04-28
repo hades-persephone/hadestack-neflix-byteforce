@@ -24,7 +24,7 @@ public interface AuthService {
      * @param registerRequest the registration request containing user details
      * @return an AuthResponse containing the JWT token and user details
      */
-    AuthResponse register(RegisterRequest registerRequest);
+    Mono<AuthResponse> register(RegisterRequest registerRequest);
 
     Mono<AuthResponse> refreshToken(RefreshTokenRequest request);
 
