@@ -1,6 +1,7 @@
 package io.watch.movie.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.watch.movie.entity.*;
 import lombok.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,9 +43,9 @@ public class MovieResponse {
     private Long fileSize;
     private Integer runtimeSeconds;
 
-    private Set<String> categories;
-    private Set<String> actors;
-    private Set<String> directors;
-    private Set<String> languages;
-    private Set<String> subtitles;
+    private Set<Category> categories;
+    private Set<Actor> actors;
+    private Set<Director> directors;
+    private Set<Language> languages;
+    private Set<Subtitle> subtitles;
 }

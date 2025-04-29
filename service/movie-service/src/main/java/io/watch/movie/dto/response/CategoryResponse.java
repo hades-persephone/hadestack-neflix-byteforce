@@ -44,8 +44,8 @@ public class CategoryResponse {
     private Integer displayOrder;
 
     @Schema(description = "Created by user ID", example = "1")
-    private Long createdBy;
+    private UUID createdBy;
 
     @Schema(description = "Updated by user ID", example = "2")
-    private Long updatedBy;
+    private UUID updatedBy;
 }

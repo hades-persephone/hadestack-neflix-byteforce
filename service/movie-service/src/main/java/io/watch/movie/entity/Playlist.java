@@ -54,7 +54,7 @@ public class Playlist extends EntityBase {
 
     @Column(name = "last_updated")
     @Schema(description = "Last updated timestamp", example = "2025-04-10T12:00:00Z")
-    private Instant lastUpdated;
+    private LocalDateTime lastUpdated;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility")

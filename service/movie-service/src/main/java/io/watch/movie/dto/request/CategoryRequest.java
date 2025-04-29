@@ -36,9 +36,9 @@ public class CategoryRequest {
     private Integer displayOrder;
 
     @Schema(description = "ID of the user who created this category", example = "1")
-    private Long createdBy;
+    private UUID createdBy;
 
     @Schema(description = "ID of the user who last updated this category", example = "2")
-    private Long updatedBy;
+    private UUID updatedBy;
 
 }

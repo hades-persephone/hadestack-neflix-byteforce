@@ -8,6 +8,8 @@ import java.util.UUID;
 
 @Data
 @Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "Movie creation or update request")

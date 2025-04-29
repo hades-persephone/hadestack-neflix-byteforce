@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -32,13 +33,13 @@ public class ReviewResponse {
     private String comment;
 
     @Schema(description = "Creation timestamp", example = "2025-04-10T10:00:00Z")
-    private Instant createdAt;
+    private LocalDateTime createdAt;
 
     @Schema(description = "Update timestamp", example = "2025-04-10T12:00:00Z")
-    private Instant updatedAt;
+    private LocalDateTime updatedAt;
 
     @Schema(description = "Deletion timestamp", example = "null")
-    private Instant deletedAt;
+    private LocalDateTime deletedAt;
 
     @Schema(description = "Number of likes", example = "10")
     private Integer likesCount;

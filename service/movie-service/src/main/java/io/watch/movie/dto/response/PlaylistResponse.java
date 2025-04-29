@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -20,12 +21,12 @@ public class PlaylistResponse {
     private String name;
     private String description;
     private Boolean isPublic;
-    private Instant createdAt;
-    private Instant updatedAt;
-    private Instant deletedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private LocalDateTime deletedAt;
     private String coverImageUrl;
     private Integer totalItems;
-    private Instant lastUpdated;
+    private LocalDateTime lastUpdated;
     private String visibility;
     private String shareUrl;
     private String playlistType;

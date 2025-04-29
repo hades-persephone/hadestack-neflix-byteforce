@@ -14,6 +14,7 @@ public class Meta {
     private String requestId;
     private String timestamp;
     private String path;
+    private String method;
     private Map<String, Object> params;
     private Map<String, Object> requestBody;
 
@@ -23,9 +24,10 @@ public class Meta {
         this.path = path;
     }
 
-    public Meta(String requestId, String path, Map<String, Object> params, Map<String, Object> requestBody) {
+    public Meta(String requestId, String path, String method, Map<String, Object> params, Map<String, Object> requestBody) {
         this.requestId = requestId;
         this.path = path;
+        this.method = method;
         this.params = params;
         this.requestBody = requestBody;
         this.timestamp = Instant.now().toString();

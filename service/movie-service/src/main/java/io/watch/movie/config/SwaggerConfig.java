@@ -17,13 +17,6 @@ public class SwaggerConfig {
                 .info(new Info()
                         .title("User Service API")
                         .version("v1")
-                        .description("API docs for user service"))
-                .components(new Components()
-                        .addSecuritySchemes("bearer-key",
-                                new SecurityScheme()
-                                        .type(SecurityScheme.Type.HTTP)
-                                        .scheme("bearer")
-                                        .bearerFormat("JWT")))
-                .addSecurityItem(new SecurityRequirement().addList("bearer-key"));
+                        .description("API docs for user service"));
     }
 }

@@ -63,6 +63,7 @@ public class ResponseBuilder {
 
     private Meta buildMeta(HttpServletRequest request) {
         String path = request.getRequestURI();
+        String method = request.getMethod();
         String requestId = Optional.ofNullable(request.getHeader("X-Request-ID"))
                 .filter(StringUtils::hasText)
                 .orElse(UUID.randomUUID().toString());
@@ -83,7 +84,7 @@ public class ResponseBuilder {
              log.error("Failed to read request body", e);
         }
 
-        return new Meta(requestId, path, paramMap, requestBodyMap);
+        return new Meta(requestId, path, method, paramMap, requestBodyMap);
     }
 
     private String getRequestBody(HttpServletRequest request) throws IOException {

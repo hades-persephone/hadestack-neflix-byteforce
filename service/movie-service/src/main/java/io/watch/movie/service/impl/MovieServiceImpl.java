@@ -45,7 +45,7 @@ public class MovieServiceImpl implements MovieService {
         movie.setCategories(fetchCategories(request.getCategoryIds()));
 
         movie = movieRepository.save(movie);
-        sendNotification("NEW_MOVIE", "Phim mới: " + movie.getTitle());
+//        sendNotification("NEW_MOVIE", "Phim mới: " + movie.getTitle());
 
         log.info("Created movie with ID: {}", movie.getId());
         return movieMapper.toResponse(movie);

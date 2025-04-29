@@ -1,6 +1,7 @@
 package io.watch.movie.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.watch.movie.entity.*;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -65,23 +66,23 @@ public class SeriesResponse {
     private LocalDateTime createdAt;
 
     @Schema(description = "Category names")
-    private Set<String> categories;
+    private Set<Category> categories;
 
     @Schema(description = "Actor names")
-    private Set<String> actors;
+    private Set<Actor> actors;
 
     @Schema(description = "Director names")
-    private Set<String> directors;
+    private Set<Director> directors;
 
     @Schema(description = "Language names")
-    private Set<String> languages;
+    private Set<Language> languages;
 
     @Schema(description = "Subtitle names")
-    private Set<String> subtitles;
+    private Set<Subtitle> subtitles;
 
     @Schema(description = "Playlist names")
-    private Set<String> playlists;
+    private Set<Playlist> playlists;
 
     @Schema(description = "List of seasons")
-    private List<SeasonResponse> seasons;
+    private List<Season> seasons;
 }
