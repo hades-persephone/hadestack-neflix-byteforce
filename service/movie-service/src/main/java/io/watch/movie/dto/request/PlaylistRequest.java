@@ -13,6 +13,9 @@ import java.util.UUID;
 @Schema(description = "Request DTO for creating or updating a playlist")
 public class PlaylistRequest {
 
+    @Schema(description = "Request playlist ID", example = "550e8400-e29b-41d4-a716-446655440000")
+    private UUID id;
+
     @Schema(description = "ID of the user who owns the playlist", example = "550e8400-e29b-41d4-a716-446655440000")
     @NotNull(message = "User ID cannot be null")
     private UUID userId;

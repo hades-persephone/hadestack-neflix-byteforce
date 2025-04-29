@@ -8,19 +8,23 @@ import io.watch.movie.dto.response.ContentResponse;
 import io.watch.movie.dto.response.MovieResponse;
 import io.watch.movie.entity.Movie;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import reactor.util.annotation.NonNullApi;
 
 import java.util.*;
 
+@EnableRedisRepositories
 @Repository
 public interface MovieRepository extends JpaRepository<Movie, UUID> {
-    List<Movie> findByIsAvailableTrue();
-    List<Movie> findByTitleContainingIgnoreCase(String title);
-    List<Movie> findByCategoryId(UUID title);
+    Page<Movie> findAll(Pageable pageable);
+    Page<Movie> findByTitleContainingIgnoreCase(String title, Pageable pageable);
+    List<Movie> findByCategoriesId(UUID categoryId);
 
     @Query("SELECT m FROM Movie m WHERE m.isAvailable = true AND m.id = ?1")
     Optional<Movie> findByIdAndIsAvailableTrue(UUID uuid);

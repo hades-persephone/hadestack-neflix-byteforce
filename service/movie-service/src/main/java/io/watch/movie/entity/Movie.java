@@ -18,7 +18,6 @@ import java.util.UUID;
 @Data
 @Entity
 @Table(name = "movies")
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

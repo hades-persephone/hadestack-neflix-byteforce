@@ -24,31 +24,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
-    private ResponseBuilder responseBuilder;
+    private final ResponseBuilder responseBuilder;
 
     @ExceptionHandler(MovieNotFoundException.class)
     public ResponseEntity<ApiResponseEntity<Object>> handleMovieNotFound(MovieNotFoundException ex, HttpServletRequest request) {
         return responseBuilder.error("MOVIE_NOT_FOUND", ex.getMessage(), null, request, HttpStatus.NOT_FOUND);
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponseEntity<Object>> handleValidationErrors(
-            MethodArgumentNotValidException ex,
-            HttpServletRequest request) {
-
-        List<String> errorMessages = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .collect(Collectors.toList());
-
-        return responseBuilder.error(
-                "VALIDATION_ERROR",
-                "Validation failed",
-                errorMessages,
-                request,
-                HttpStatus.BAD_REQUEST
-        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -86,7 +66,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponseEntity<Object>> handleOtherExceptions(Exception ex, HttpServletRequest request) {
         ex.printStackTrace();
-        return responseBuilder.error("INTERNAL_SERVER_ERROR", "Unexpected error occurred", null, request, HttpStatus.INTERNAL_SERVER_ERROR);
+        return responseBuilder.error("INTERNAL_SERVER_ERROR", "Unexpected error occurred", ex.getMessage(), request, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
 }

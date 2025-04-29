@@ -4,6 +4,7 @@ import io.watch.movie.dto.mapper.MovieMapper;
 import io.watch.movie.dto.request.MovieRequest;
 import io.watch.movie.dto.response.MovieResponse;
 import io.watch.movie.entity.Category;
+import io.watch.movie.entity.EntityBase;
 import io.watch.movie.entity.Movie;
 import io.watch.movie.exception.MovieNotFoundException;
 import io.watch.movie.repository.*;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,10 +61,8 @@ public class MovieServiceImpl implements MovieService {
 
     @Override
     @Cacheable(value = "movies", key = "'all'")
-    public List<MovieResponse> getAllMovies() {
-        return movieRepository.findByIsAvailableTrue().stream()
-                .map(movieMapper::toResponse)
-                .collect(Collectors.toList());
+    public Page<Movie> getAllMovies(Pageable pageable) {
+        return movieRepository.findAll(pageable);
     }
 
     @Override
@@ -97,20 +98,18 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
-    public List<MovieResponse> searchMoviesByTitle(String title) {
+    public Page<MovieResponse> searchMoviesByTitle(String title, Pageable pageable) {
         if (title == null || title.trim().isEmpty()) {
             throw new IllegalArgumentException("Title cannot be empty");
         }
-        return movieRepository.findByTitleContainingIgnoreCase(title).stream()
-                .filter(Movie::getIsAvailable)
-                .map(movieMapper::toResponse)
-                .collect(Collectors.toList());
+        Page<Movie> movieEntities = movieRepository.findByTitleContainingIgnoreCase(title, pageable);
+        return movieEntities.map(movieMapper::toResponse);
     }
 
     @Override
     @Cacheable(value = "movies", key = "'category_' + #categoryId")
     public List<MovieResponse> getMoviesByCategory(UUID categoryId) {
-        return movieRepository.findByCategoryId(categoryId).stream()
+        return movieRepository.findByCategoriesId(categoryId).stream()
                 .filter(Movie::getIsAvailable)
                 .map(movieMapper::toResponse)
                 .collect(Collectors.toList());

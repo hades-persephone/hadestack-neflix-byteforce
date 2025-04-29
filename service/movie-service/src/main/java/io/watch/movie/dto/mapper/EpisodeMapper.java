@@ -9,9 +9,6 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface EpisodeMapper {
 
-    @Mapping(target = "season", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "updatedBy", ignore = true)
     Episode toEntity(EpisodeRequest request);
 
     EpisodeResponse toResponse(Episode episode);

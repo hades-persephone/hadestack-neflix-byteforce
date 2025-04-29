@@ -12,9 +12,11 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 @Schema(description = "Request DTO for creating or updating an actor")
 public class ActorRequest {
+
+    @Schema(description = "Actor ID", example = "550e8400-e29b-41d4-a716-446655440000")
+    private UUID id;
 
     @NotBlank(message = "Full name cannot be blank")
     @Size(min = 2, max = 100, message = "Full name must be between 2 and 100 characters")

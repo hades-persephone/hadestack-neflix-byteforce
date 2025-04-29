@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Entity
 @Table(name = "reviews")

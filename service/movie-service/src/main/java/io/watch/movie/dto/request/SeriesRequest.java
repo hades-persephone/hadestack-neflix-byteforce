@@ -1,6 +1,7 @@
 package io.watch.movie.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.watch.movie.entity.Season;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
@@ -80,5 +81,5 @@ public class SeriesRequest {
     private Set<UUID> playlistIds;
 
     @Schema(description = "List of seasons")
-    private List<SeasonRequest> seasons;
+    private Set<SeasonRequest> seasons;
 }

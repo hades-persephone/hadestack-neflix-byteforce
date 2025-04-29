@@ -1,4 +1,5 @@
 package io.watch.movie.config;
+
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.UUID;
 
 @Configuration
 @EnableTransactionManagement
@@ -24,6 +26,7 @@ import java.util.Objects;
         transactionManagerRef = "primaryTransactionManager"
 )
 public class PostgresConfig {
+
     @Primary
     @Bean(name = "primaryDataSource")
     @ConfigurationProperties(prefix = "spring.datasource.primary")
@@ -44,14 +47,14 @@ public class PostgresConfig {
         return getLocalContainerEntityManagerFactoryBean(primaryDataSource);
     }
 
-    private LocalContainerEntityManagerFactoryBean getLocalContainerEntityManagerFactoryBean(@Qualifier("primaryDataSource") DataSource primaryDataSource) {
+    private LocalContainerEntityManagerFactoryBean getLocalContainerEntityManagerFactoryBean(DataSource primaryDataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(primaryDataSource);
         em.setPackagesToScan("io.watch.movie.entity");
         em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
 
         HashMap<String, Object> properties = new HashMap<>();
-        properties.put("hibernate.hbm2ddl.auto", "validate");
+        properties.put("hibernate.hbm2ddl.auto", "update");
         properties.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
         em.setJpaPropertyMap(properties);
 
@@ -70,4 +73,11 @@ public class PostgresConfig {
             @Qualifier("primaryEntityManagerFactory") LocalContainerEntityManagerFactoryBean primaryEntityManagerFactory) {
         return new JpaTransactionManager(Objects.requireNonNull(primaryEntityManagerFactory.getObject()));
     }
+
+    @Bean(name = "secondaryTransactionManager")
+    public PlatformTransactionManager secondaryTransactionManager(
+            @Qualifier("secondaryEntityManagerFactory") LocalContainerEntityManagerFactoryBean secondaryEntityManagerFactory) {
+        return new JpaTransactionManager(Objects.requireNonNull(secondaryEntityManagerFactory.getObject()));
+    }
+
 }

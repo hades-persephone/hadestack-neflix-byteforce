@@ -7,8 +7,12 @@ import lombok.*;
 
 import java.util.UUID;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Entity
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "subtitles")
 @Schema(description = "Subtitle entity representing a subtitle file")
 public class Subtitle extends EntityBase {

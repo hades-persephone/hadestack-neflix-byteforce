@@ -3,12 +3,17 @@ package io.watch.movie.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.watch.movie.dto.request.MovieRequest;
 import io.watch.movie.dto.response.MovieResponse;
+import io.watch.movie.entity.Movie;
 import io.watch.movie.response.ApiResponseEntity;
 import io.watch.movie.response.ResponseBuilder;
 import io.watch.movie.service.MovieService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,8 +43,15 @@ public class MovieController {
 
     @GetMapping
     @Operation(summary = "Get all available movies")
-    public ResponseEntity<ApiResponseEntity<List<MovieResponse>>> getAllMovies(HttpServletRequest req) {
-        return responseBuilder.success(movieService.getAllMovies(), req);
+    public ResponseEntity<ApiResponseEntity<Page<Movie>>> getAllMovies(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection,
+            HttpServletRequest req) {
+        Sort sort = "desc".equalsIgnoreCase(sortDirection) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return responseBuilder.success(movieService.getAllMovies(pageable), req);
     }
 
     @PutMapping("/{id}")
@@ -57,8 +69,16 @@ public class MovieController {
 
     @GetMapping("/search")
     @Operation(summary = "Search movies by title")
-    public ResponseEntity<ApiResponseEntity<List<MovieResponse>>> searchMovies(@RequestParam String title, HttpServletRequest req) {
-        return responseBuilder.success(movieService.searchMoviesByTitle(title), req);
+    public ResponseEntity<ApiResponseEntity<Page<MovieResponse>>> searchMovies(
+            @RequestParam(defaultValue = "") String title,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection,
+            HttpServletRequest req) {
+        Sort sort = "desc".equalsIgnoreCase(sortDirection) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return responseBuilder.success(movieService.searchMoviesByTitle(title, pageable), req);
     }
 
     @GetMapping("/category/{categoryId}")

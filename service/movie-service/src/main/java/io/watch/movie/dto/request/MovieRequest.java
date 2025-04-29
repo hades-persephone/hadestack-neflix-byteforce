@@ -13,6 +13,9 @@ import java.util.UUID;
 @Schema(description = "Movie creation or update request")
 public class MovieRequest {
 
+    @Schema(description = "Movie ID", example = "550e8400-e29b-41d4-a716-446655440000")
+    private UUID id;
+
     @Schema(description = "Title of the movie", example = "Inception")
     private String title;
 

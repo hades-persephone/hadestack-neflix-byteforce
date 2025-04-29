@@ -15,7 +15,6 @@ import java.util.UUID;
 @Data
 @Entity
 @Table(name = "seasons")
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)

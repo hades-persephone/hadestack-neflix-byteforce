@@ -1,6 +1,7 @@
 package io.watch.movie.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.watch.movie.entity.Episode;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Schema(description = "Request object for a season within a series")
@@ -37,5 +39,5 @@ public class SeasonRequest {
     private String trailerUrl;
 
     @Schema(description = "List of episodes")
-    private List<EpisodeRequest> episodes;
+    private Set<EpisodeRequest> episodes;
 }

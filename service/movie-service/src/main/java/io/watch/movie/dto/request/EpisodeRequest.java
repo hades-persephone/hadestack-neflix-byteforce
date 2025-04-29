@@ -1,6 +1,7 @@
 package io.watch.movie.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.watch.movie.entity.Season;
 import io.watch.movie.entity.substraction.VideoQuality;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -57,4 +58,7 @@ public class EpisodeRequest {
     @Min(0)
     @Schema(description = "Runtime in seconds", example = "3000")
     private Integer runtimeSeconds;
+
+    @Schema(description = "Season this episode belongs to")
+    private Season season;
 }

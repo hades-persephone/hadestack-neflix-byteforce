@@ -14,6 +14,7 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 
@@ -69,23 +70,16 @@ public class KafkaConfig {
         var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
         factory.setConsumerFactory(consumerFactory());
         factory.setConcurrency(3);
-        factory.setCommonErrorHandler(errorHandler()); // use new style
+        factory.setCommonErrorHandler(errorHandler());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         return factory;
     }
 
     @Bean
     public DefaultErrorHandler errorHandler() {
-        // Retry 3 lần, cách nhau 2 giây
         FixedBackOff fixedBackOff = new FixedBackOff(2000L, 3);
-
-        // Tự xử lý logging/logic nếu cần
-        KafkaFuture.BiConsumer<ConsumerRecord<?, ?>, Exception> recoverer = (record, ex) -> {
-            System.err.println("Retry failed for record: " + record.value());
-            ex.printStackTrace();
-        };
-
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler((ConsumerRecordRecoverer) recoverer, fixedBackOff);
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate());
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, fixedBackOff);
         errorHandler.addNotRetryableExceptions(IllegalArgumentException.class);
         return errorHandler;
     }
