@@ -117,16 +117,16 @@ public interface MovieRepository extends JpaRepository<Movie, UUID> {
 
             // Handle 'yearStart' and 'yearEnd'
             if (!CommonUtil.isNullOrEmpty(request.getYearStart()) && !CommonUtil.isNullOrEmpty(request.getYearEnd())) {
-                sql.append(" AND YEAR(mo.release_date) BETWEEN :yearStart AND :yearEnd ");
+                sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) BETWEEN :yearStart AND :yearEnd ");
                 params.put("yearStart", Integer.parseInt(request.getYearStart()));
                 params.put("yearEnd", Integer.parseInt(request.getYearEnd()));
             } else {
                 if (!CommonUtil.isNullOrEmpty(request.getYearStart())) {
-                    sql.append(" AND YEAR(mo.release_date) >= :yearStart ");
+                    sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) >= :yearStart ");
                     params.put("yearStart", Integer.parseInt(request.getYearStart()));
                 }
                 if (!CommonUtil.isNullOrEmpty(request.getYearEnd())) {
-                    sql.append(" AND YEAR(mo.release_date) <= :yearEnd ");
+                    sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) <= :yearEnd ");
                     params.put("yearEnd", Integer.parseInt(request.getYearEnd()));
                 }
             }
