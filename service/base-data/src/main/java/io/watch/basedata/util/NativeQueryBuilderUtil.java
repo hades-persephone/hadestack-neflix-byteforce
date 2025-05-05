@@ -5,13 +5,12 @@ import org.springframework.util.StringUtils;
 
 public class NativeQueryBuilderUtil {
 
-    public static String buildPaginatedQuery(String baseQuery, String orderBy, SearchParams params) {
+    public static String buildPaginatedQuery(String baseQuery, String orderBy) {
         StringBuilder queryBuilder = new StringBuilder(baseQuery.trim());
 
         if (StringUtils.hasText(orderBy)) {
-            queryBuilder.append(" ORDER BY ").append(orderBy);
+            queryBuilder.append(orderBy);
         }
-
         return queryBuilder.toString();
     }
 

@@ -23,8 +23,8 @@ public class Subtitle extends EntityBase {
     @Schema(description = "Language of the subtitle", example = "English")
     private String language;
 
-    @Size(max = 255, message = "File URL cannot exceed 255 characters")
-    @Column(name = "file_url")
-    @Schema(description = "URL of the subtitle file", example = "https://example.com/subtitle.srt")
-    private String fileUrl;
+    @Size(max = 255, message = "File path cannot exceed 255 characters")
+    @Column(name = "file_path")
+    @Schema(description = "Path to the subtitle file", example = "/var/subtitles/english_subtitle.srt")
+    private String filePath;
 }

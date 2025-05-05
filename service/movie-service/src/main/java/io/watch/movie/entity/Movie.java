@@ -43,6 +43,7 @@ public class Movie extends EntityBase {
     @PastOrPresent(message = "Release date must be in the past or present")
     @Column(name = "release_date")
     @Schema(description  = "Release date", example = "2010-07-16")
+    @Temporal(TemporalType.DATE)
     private LocalDate releaseDate;
 
     @DecimalMin(value  = "0.0") @DecimalMax(value  = "10.0")

@@ -32,7 +32,6 @@ public abstract class EntityBase {
     private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")
-    @UpdateTimestamp
     private LocalDateTime deletedAt;
 
     @Column(name = "created_by")

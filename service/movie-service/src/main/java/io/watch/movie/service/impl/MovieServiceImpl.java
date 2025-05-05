@@ -1,14 +1,16 @@
 package io.watch.movie.service.impl;
 
+import io.watch.basedata.data.common.BaseNativeQueryExecutor;
+import io.watch.basedata.dto.DataResults;
 import io.watch.movie.dto.mapper.MovieMapper;
 import io.watch.movie.dto.request.MovieRequest;
+import io.watch.movie.dto.request.MovieRequestSearch;
 import io.watch.movie.dto.response.MovieResponse;
-import io.watch.movie.entity.Category;
-import io.watch.movie.entity.EntityBase;
-import io.watch.movie.entity.Movie;
+import io.watch.movie.entity.*;
 import io.watch.movie.exception.MovieNotFoundException;
 import io.watch.movie.repository.*;
 import io.watch.movie.service.MovieService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -32,8 +35,18 @@ public class MovieServiceImpl implements MovieService {
 
     private final MovieRepository movieRepository;
     private final CategoryRepository categoryRepository;
+    private final SubtitleRepository subtitleRepository;
+    private final DirectorRepository directorRepository;
+    private final LanguageRepository languageRepository;
+    private final ActorRepository actorRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final MovieMapper movieMapper;
+    private final BaseNativeQueryExecutor query;
+
+    @Override
+    public DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req) {
+        return movieRepository.search(query, request, pageable, req);
+    }
 
     @Override
     @Transactional
@@ -43,6 +56,9 @@ public class MovieServiceImpl implements MovieService {
 
         Movie movie = movieMapper.toEntity(request);
         movie.setCategories(fetchCategories(request.getCategoryIds()));
+        movie.setActors(fetchActors(request.getActorIds()));
+        movie.setDirectors(fetchDirectors(request.getDirectorIds()));
+        movie.setLanguages(fetchLanguages(request.getLanguageIds()));
 
         movie = movieRepository.save(movie);
 //        sendNotification("NEW_MOVIE", "Phim mới: " + movie.getTitle());
@@ -142,14 +158,60 @@ public class MovieServiceImpl implements MovieService {
         }
         Set<Category> categories = categoryIds.stream()
                 .map(categoryRepository::findById)
-                .filter(java.util.Optional::isPresent)
-                .map(java.util.Optional::get)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
                 .collect(Collectors.toSet());
         if (categories.size() != categoryIds.size()) {
             throw new IllegalArgumentException("One or more category IDs are invalid");
         }
         return categories;
     }
+
+    private Set<Actor> fetchActors(Set<UUID> actorsIds) {
+        if (actorsIds == null || actorsIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Actor> actors = actorsIds.stream()
+                .map(actorRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
+        if (actors.size() != actorsIds.size()) {
+            throw new IllegalArgumentException("One or more actor IDs are invalid");
+        }
+        return actors;
+    }
+
+    private Set<Director> fetchDirectors(Set<UUID> directorsIds) {
+        if (directorsIds == null || directorsIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Director> directors = directorsIds.stream()
+                .map(directorRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
+        if (directors.size() != directorsIds.size()) {
+            throw new IllegalArgumentException("One or more directors IDs are invalid");
+        }
+        return directors;
+    }
+
+    private Set<Language> fetchLanguages(Set<UUID> languagesIds) {
+        if (languagesIds == null || languagesIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Language> languages = languagesIds.stream()
+                .map(languageRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
+        if (languages.size() != languagesIds.size()) {
+            throw new IllegalArgumentException("One or more languages IDs are invalid");
+        }
+        return languages;
+    }
+
 
     private Double calculateRatingScore(UUID movieId, Double newScore) {
         // Logic mẫu, cần tích hợp bảng reviews nếu có

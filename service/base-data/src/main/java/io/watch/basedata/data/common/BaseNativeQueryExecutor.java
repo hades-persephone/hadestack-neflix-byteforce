@@ -1,5 +1,6 @@
 package io.watch.basedata.data.common;
 
+import io.watch.basedata.data.query.SearchParams;
 import io.watch.basedata.dto.DataResults;
 import jakarta.servlet.http.HttpServletRequest;
 

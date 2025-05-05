@@ -1,16 +1,13 @@
 package io.watch.basedata.data.common;
 
-import com.google.gson.Gson;
 import io.watch.basedata.data.query.SearchParams;
 import io.watch.basedata.dto.DataResults;
 import io.watch.basedata.util.NativeQueryBuilderUtil;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.Query;
+import jakarta.persistence.*;
 import jakarta.servlet.http.HttpServletRequest;
+import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -21,6 +18,8 @@ public class BaseNativeQueryExecutorImpl implements BaseNativeQueryExecutor {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private TupleToDtoMapper dtoMapper;
 
     @Override
     public <T> T get(String nativeQuery, Map<String, Object> mapParams, Class<T> resultClass) {
@@ -48,40 +47,43 @@ public class BaseNativeQueryExecutorImpl implements BaseNativeQueryExecutor {
     }
 
     @Override
-    public <T> DataResults<T> findPagination(String nativeQuery,
-                                             String orderBy,
+    public <T> DataResults<T> findPagination(String nativeQuery, String orderBy,
                                              Map<String, Object> mapParams,
                                              Class<T> obj, int limit,
                                              HttpServletRequest req) {
-        String _search = req.getParameter("search");
-        SearchParams searchParams = new SearchParams();
+        String _page = req.getParameter("page");
+        String _size = req.getParameter("size");
+        SearchParams searchParams = new SearchParams(Integer.valueOf(_page), Integer.valueOf(_size));
 
-        if (!StringUtils.hasText(_search)) {
-            searchParams = new Gson().fromJson(_search, SearchParams.class);
-        }
-
-        String paginatedQuery = NativeQueryBuilderUtil.buildPaginatedQuery(nativeQuery, orderBy, searchParams);
+        String paginatedQuery = NativeQueryBuilderUtil.buildPaginatedQuery(nativeQuery, orderBy);
         String countQuery = NativeQueryBuilderUtil.buildCountQuery(nativeQuery);
 
-        Query query = entityManager.createNativeQuery(paginatedQuery, obj);
+        Query queryEntity = entityManager.createNativeQuery(paginatedQuery, obj);
+        queryEntity.unwrap(NativeQuery.class)
+                .setTupleTransformer((tuple, aliases) ->
+                        TupleToDtoMapper.mapTupleToDto(tuple, aliases, obj)
+                );
+
         Query totalCountQuery = entityManager.createNativeQuery(countQuery);
 
-        query.setFirstResult(Optional.ofNullable(searchParams.getFirst()).orElse(0));
-        query.setMaxResults(Optional.ofNullable(searchParams.getRows()).orElse(limit));
+        queryEntity.setFirstResult(Optional.ofNullable(searchParams.getFirst()).orElse(0));
+        queryEntity.setMaxResults(Optional.ofNullable(searchParams.getRows()).orElse(limit));
 
+        // Set query parameters if they exist
         if (mapParams != null && !mapParams.isEmpty()) {
             mapParams.forEach((k, v) -> {
-                query.setParameter(k, v);
+                queryEntity.setParameter(k, v);
                 totalCountQuery.setParameter(k, v);
             });
         }
 
-        List<T> userList = query.getResultList();
+        @SuppressWarnings("unchecked")
+        List<T> dataList = queryEntity.getResultList();
         Object totalRecords = totalCountQuery.getSingleResult();
 
         DataResults<T> dataTableResult = new DataResults<>();
-        if (!CollectionUtils.isEmpty(userList)) {
-            dataTableResult.setListOfDataObjects(userList);
+        if (!CollectionUtils.isEmpty(dataList)) {
+            dataTableResult.setListData(dataList);
             dataTableResult.setRecordsTotal(String.valueOf(totalRecords));
             dataTableResult.setRecordsFiltered(String.valueOf(totalRecords));
             dataTableResult.setStart(String.valueOf(searchParams.getFirst()));

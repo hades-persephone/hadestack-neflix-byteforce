@@ -30,7 +30,7 @@ public class Category extends EntityBase {
 
     @Size(max = 255, message = "Icon URL cannot exceed 255 characters")
     @Column(name = "icon_url")
-    @Schema(description = "URL of the category icon", example = "https://example.com/icon.png")
+    @Schema(description = "URL of the category icon", example = "https://example.com/icon.  png")
     private String iconUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)

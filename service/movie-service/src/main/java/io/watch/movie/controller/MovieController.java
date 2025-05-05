@@ -1,7 +1,9 @@
 package io.watch.movie.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.watch.basedata.dto.DataResults;
 import io.watch.movie.dto.request.MovieRequest;
+import io.watch.movie.dto.request.MovieRequestSearch;
 import io.watch.movie.dto.response.MovieResponse;
 import io.watch.movie.entity.Movie;
 import io.watch.movie.response.ApiResponseEntity;
@@ -73,12 +75,23 @@ public class MovieController {
             @RequestParam(defaultValue = "") String title,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDirection,
             HttpServletRequest req) {
         Sort sort = "desc".equalsIgnoreCase(sortDirection) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
         return responseBuilder.success(movieService.searchMoviesByTitle(title, pageable), req);
+    }
+
+    @GetMapping("/search-query")
+    @Operation(summary = "Search movies by title")
+    public ResponseEntity<ApiResponseEntity<DataResults<MovieResponse>>> searchMovies(
+            @ModelAttribute MovieRequestSearch request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest req) {
+        Pageable pageable = PageRequest.of(page, size);
+        return responseBuilder.success(movieService.searchMoviesByQuery(request, pageable, req), req);
     }
 
     @GetMapping("/category/{categoryId}")

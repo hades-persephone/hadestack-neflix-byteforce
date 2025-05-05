@@ -1,8 +1,11 @@
 package io.watch.movie.service;
 
+import io.watch.basedata.dto.DataResults;
 import io.watch.movie.dto.request.MovieRequest;
+import io.watch.movie.dto.request.MovieRequestSearch;
 import io.watch.movie.dto.response.MovieResponse;
 import io.watch.movie.entity.Movie;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -16,6 +19,7 @@ public interface MovieService {
     MovieResponse updateMovie(UUID id, MovieRequest request);
     void deleteMovie(UUID id);
     Page<MovieResponse> searchMoviesByTitle(String title, Pageable pageable);
+    DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req);
     List<MovieResponse> getMoviesByCategory(UUID categoryId);
     void incrementViewCount(UUID movieId);
 }
