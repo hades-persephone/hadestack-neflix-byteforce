@@ -1,5 +1,6 @@
 package io.watch.movie.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.watch.basedata.dto.DataResults;
 import io.watch.movie.dto.request.MovieRequest;
@@ -32,7 +33,7 @@ public class MovieController {
 
     @PostMapping
     @Operation(summary = "Create a new movie")
-    public ResponseEntity<ApiResponseEntity<Object>> createMovie(@Valid @RequestBody MovieRequest request, HttpServletRequest req) {
+    public ResponseEntity<ApiResponseEntity<Object>> createMovie(@Valid @RequestBody MovieRequest request, HttpServletRequest req) throws JsonProcessingException {
         movieService.createMovie(request);
         return responseBuilder.successMessage("Created a new movie", req);
     }
@@ -58,7 +59,7 @@ public class MovieController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a movie")
-    public ResponseEntity<MovieResponse> updateMovie(@PathVariable UUID id, @Valid @RequestBody MovieRequest request) {
+    public ResponseEntity<MovieResponse> updateMovie(@PathVariable UUID id, @Valid @RequestBody MovieRequest request) throws JsonProcessingException {
         return ResponseEntity.ok(movieService.updateMovie(id, request));
     }
 

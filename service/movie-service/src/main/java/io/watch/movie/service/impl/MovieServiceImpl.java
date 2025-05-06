@@ -1,7 +1,10 @@
 package io.watch.movie.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.watch.basedata.data.common.BaseNativeQueryExecutor;
 import io.watch.basedata.dto.DataResults;
+import io.watch.movie.dto.MovieNotificationDTO;
 import io.watch.movie.dto.mapper.MovieMapper;
 import io.watch.movie.dto.request.MovieRequest;
 import io.watch.movie.dto.request.MovieRequestSearch;
@@ -42,6 +45,7 @@ public class MovieServiceImpl implements MovieService {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final MovieMapper movieMapper;
     private final BaseNativeQueryExecutor query;
+    private final ObjectMapper objectMapper;
 
     @Override
     public DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req) {
@@ -51,7 +55,7 @@ public class MovieServiceImpl implements MovieService {
     @Override
     @Transactional
     @CacheEvict(value = "movies", allEntries = true)
-    public MovieResponse createMovie(MovieRequest request) {
+    public MovieResponse createMovie(MovieRequest request) throws JsonProcessingException {
         validateMovieRequest(request);
 
         Movie movie = movieMapper.toEntity(request);
@@ -61,7 +65,7 @@ public class MovieServiceImpl implements MovieService {
         movie.setLanguages(fetchLanguages(request.getLanguageIds()));
 
         movie = movieRepository.save(movie);
-//        sendNotification("NEW_MOVIE", "Phim mới: " + movie.getTitle());
+        sendNotification("NEW_MOVIE", "Phim mới: " + movie.getTitle());
 
         log.info("Created movie with ID: {}", movie.getId());
         return movieMapper.toResponse(movie);
@@ -84,7 +88,7 @@ public class MovieServiceImpl implements MovieService {
     @Override
     @Transactional
     @CacheEvict(value = "movies", allEntries = true)
-    public MovieResponse updateMovie(UUID id, MovieRequest request) {
+    public MovieResponse updateMovie(UUID id, MovieRequest request) throws JsonProcessingException {
         validateMovieRequest(request);
 
         Movie movie = movieRepository.findById(id)
@@ -218,13 +222,15 @@ public class MovieServiceImpl implements MovieService {
         return newScore != null ? newScore : 0.0;
     }
 
-    private void sendNotification(String type, String message) {
-        kafkaTemplate.send("movie-notifications", type, message)
+    private void sendNotification(String type, String message) throws JsonProcessingException {
+        MovieNotificationDTO sendMessage = new MovieNotificationDTO(type, message);
+        String json = objectMapper.writeValueAsString(sendMessage);
+        kafkaTemplate.send("movie-notifications", type, json)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
-                        log.error("❌ Kafka send failed: {} - {}, reason: {}", type, message, ex.getMessage());
+                        log.error("❌ Kafka send failed: {} - {}, reason: {}", type, json, ex.getMessage());
                     } else {
-                        log.info("✅ Kafka sent: {} - {}", type, message);
+                        log.info("✅ Kafka sent: {} - {}", type, json);
                     }
                 });
     }
