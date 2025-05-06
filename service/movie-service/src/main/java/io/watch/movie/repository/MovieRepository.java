@@ -68,99 +68,99 @@ public interface MovieRepository extends JpaRepository<Movie, UUID> {
         sql.append(" LEFT JOIN movies_languages ml ON mo.id = ml.movie_id           ");
         sql.append(" LEFT JOIN languages l ON ml.language_id = l.id and l.is_available = TRUE        ");
         sql.append(" WHERE 1=1 AND mo.is_available = TRUE AND mo.deleted_at IS NULL ");
-
-        if(!CommonUtil.isEmpty(request)) {
-            if(!CommonUtil.isNullOrEmpty(request.getTitle())) {
-                sql.append(" AND (mo.title LIKE CONCAT('%', :title, '%') OR mo.description LIKE CONCAT('%', :title, '%') ) ");
-                params.put("title", request.getTitle());
-            }
-
-            if(!CommonUtil.isNullOrEmpty(request.getVideoQuality())) {
-                sql.append(" AND mo.video_quality = :videoQuality ");
-                params.put("videoQuality", request.getVideoQuality());
-            }
-
-            // Handle 'language'
-            if (!CommonUtil.isNullOrEmpty(request.getLanguage())) {
-                sql.append(" AND l.name IN :languages ");
-                params.put("languages", request.getLanguage());
-            }
-
-            // Handle 'country'
-            if (!CommonUtil.isNullOrEmpty(request.getCountry())) {
-                sql.append(" AND mo.country_of_origin IN :countries ");
-                params.put("countries", request.getCountry());
-            }
-
-            // Handle 'genre'
-            if (!CommonUtil.isNullOrEmpty(request.getGenre())) {
-                sql.append(" AND c.name IN :genres ");
-                params.put("genres", request.getGenre());
-            }
-
-            // Handle 'director'
-            if (!CommonUtil.isNullOrEmpty(request.getDirector())) {
-                sql.append(" AND d.full_name IN :directors ");
-                params.put("directors", request.getDirector());
-            }
-
-            // Handle 'actor'
-            if (!CommonUtil.isNullOrEmpty(request.getActor())) {
-                sql.append(" AND a.full_name IN :actors ");
-                params.put("actors", request.getActor());
-            }
-
-            if(!CommonUtil.isNullOrEmpty(request.getAgeRating())) {
-                sql.append(" AND mo.age_rating = :ageRating ");
-                params.put("ageRating", request.getAgeRating());
-            }
-
-            // Handle 'yearStart' and 'yearEnd'
-            if (!CommonUtil.isNullOrEmpty(request.getYearStart()) && !CommonUtil.isNullOrEmpty(request.getYearEnd())) {
-                sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) BETWEEN :yearStart AND :yearEnd ");
-                params.put("yearStart", Integer.parseInt(request.getYearStart()));
-                params.put("yearEnd", Integer.parseInt(request.getYearEnd()));
-            } else {
-                if (!CommonUtil.isNullOrEmpty(request.getYearStart())) {
-                    sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) >= :yearStart ");
-                    params.put("yearStart", Integer.parseInt(request.getYearStart()));
-                }
-                if (!CommonUtil.isNullOrEmpty(request.getYearEnd())) {
-                    sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) <= :yearEnd ");
-                    params.put("yearEnd", Integer.parseInt(request.getYearEnd()));
-                }
-            }
-
-            // Handle 'imdbRatingRangeMin' and 'imdbRatingRangeMax'
-            if (request.getImdbRatingRangeMin() != null && request.getImdbRatingRangeMax() != null) {
-                sql.append(" AND mo.imdb_rating BETWEEN :imdbRatingRangeMin AND :imdbRatingRangeMax ");
-                params.put("imdbRatingRangeMin", request.getImdbRatingRangeMin());
-                params.put("imdbRatingRangeMax", request.getImdbRatingRangeMax());
-            }
-
-            // Handle 'ratingScoreRangeMin' and 'ratingScoreRangeMax'
-            if (request.getRatingScoreRangeMin() != null && request.getRatingScoreRangeMax() != null) {
-                sql.append(" AND mo.rating_score BETWEEN :ratingScoreRangeMin AND :ratingScoreRangeMax ");
-                params.put("ratingScoreRangeMin", request.getRatingScoreRangeMin());
-                params.put("ratingScoreRangeMax", request.getRatingScoreRangeMax());
-            }
-
-            // Handle 'releaseStartDate' and 'releaseEndDate'
-            if(!CommonUtil.isNullOrEmpty(request.getReleaseStartDate()) && !CommonUtil.isNullOrEmpty(request.getReleaseEndDate())) {
-                sql.append(" AND mo.release_date BETWEEN :startDate AND :endDate ");
-                params.put("startDate", CommonUtil.parseDate(request.getReleaseStartDate()));
-                params.put("endDate", CommonUtil.parseDate(request.getReleaseEndDate()));
-            } else {
-                if(!CommonUtil.isNullOrEmpty(request.getReleaseStartDate())) {
-                    sql.append(" AND mo.release_date >= :startDate ");
-                    params.put("startDate", CommonUtil.parseDate(request.getReleaseStartDate()));
-                }
-                if(!CommonUtil.isNullOrEmpty(request.getReleaseEndDate())) {
-                    sql.append(" AND mo.release_date <= :endDate ");
-                    params.put("endDate", CommonUtil.parseDate(request.getReleaseEndDate()));
-                }
-            }
-        }
+//
+//        if(!CommonUtil.isEmpty(request)) {
+//            if(!CommonUtil.isNullOrEmpty(request.getTitle())) {
+//                sql.append(" AND (mo.title LIKE CONCAT('%', :title, '%') OR mo.description LIKE CONCAT('%', :title, '%') ) ");
+//                params.put("title", request.getTitle());
+//            }
+//
+//            if(!CommonUtil.isNullOrEmpty(request.getVideoQuality())) {
+//                sql.append(" AND mo.video_quality = :videoQuality ");
+//                params.put("videoQuality", request.getVideoQuality());
+//            }
+//
+//            // Handle 'language'
+//            if (!CommonUtil.isNullOrEmpty(request.getLanguage())) {
+//                sql.append(" AND l.name IN :languages ");
+//                params.put("languages", request.getLanguage());
+//            }
+//
+//            // Handle 'country'
+//            if (!CommonUtil.isNullOrEmpty(request.getCountry())) {
+//                sql.append(" AND mo.country_of_origin IN :countries ");
+//                params.put("countries", request.getCountry());
+//            }
+//
+//            // Handle 'genre'
+//            if (!CommonUtil.isNullOrEmpty(request.getGenre())) {
+//                sql.append(" AND c.name IN :genres ");
+//                params.put("genres", request.getGenre());
+//            }
+//
+//            // Handle 'director'
+//            if (!CommonUtil.isNullOrEmpty(request.getDirector())) {
+//                sql.append(" AND d.full_name IN :directors ");
+//                params.put("directors", request.getDirector());
+//            }
+//
+//            // Handle 'actor'
+//            if (!CommonUtil.isNullOrEmpty(request.getActor())) {
+//                sql.append(" AND a.full_name IN :actors ");
+//                params.put("actors", request.getActor());
+//            }
+//
+//            if(!CommonUtil.isNullOrEmpty(request.getAgeRating())) {
+//                sql.append(" AND mo.age_rating = :ageRating ");
+//                params.put("ageRating", request.getAgeRating());
+//            }
+//
+//            // Handle 'yearStart' and 'yearEnd'
+//            if (!CommonUtil.isNullOrEmpty(request.getYearStart()) && !CommonUtil.isNullOrEmpty(request.getYearEnd())) {
+//                sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) BETWEEN :yearStart AND :yearEnd ");
+//                params.put("yearStart", Integer.parseInt(request.getYearStart()));
+//                params.put("yearEnd", Integer.parseInt(request.getYearEnd()));
+//            } else {
+//                if (!CommonUtil.isNullOrEmpty(request.getYearStart())) {
+//                    sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) >= :yearStart ");
+//                    params.put("yearStart", Integer.parseInt(request.getYearStart()));
+//                }
+//                if (!CommonUtil.isNullOrEmpty(request.getYearEnd())) {
+//                    sql.append(" AND  EXTRACT(YEAR FROM mo.release_date) <= :yearEnd ");
+//                    params.put("yearEnd", Integer.parseInt(request.getYearEnd()));
+//                }
+//            }
+//
+//            // Handle 'imdbRatingRangeMin' and 'imdbRatingRangeMax'
+//            if (request.getImdbRatingRangeMin() != null && request.getImdbRatingRangeMax() != null) {
+//                sql.append(" AND mo.imdb_rating BETWEEN :imdbRatingRangeMin AND :imdbRatingRangeMax ");
+//                params.put("imdbRatingRangeMin", request.getImdbRatingRangeMin());
+//                params.put("imdbRatingRangeMax", request.getImdbRatingRangeMax());
+//            }
+//
+//            // Handle 'ratingScoreRangeMin' and 'ratingScoreRangeMax'
+//            if (request.getRatingScoreRangeMin() != null && request.getRatingScoreRangeMax() != null) {
+//                sql.append(" AND mo.rating_score BETWEEN :ratingScoreRangeMin AND :ratingScoreRangeMax ");
+//                params.put("ratingScoreRangeMin", request.getRatingScoreRangeMin());
+//                params.put("ratingScoreRangeMax", request.getRatingScoreRangeMax());
+//            }
+//
+//            // Handle 'releaseStartDate' and 'releaseEndDate'
+//            if(!CommonUtil.isNullOrEmpty(request.getReleaseStartDate()) && !CommonUtil.isNullOrEmpty(request.getReleaseEndDate())) {
+//                sql.append(" AND mo.release_date BETWEEN :startDate AND :endDate ");
+//                params.put("startDate", CommonUtil.parseDate(request.getReleaseStartDate()));
+//                params.put("endDate", CommonUtil.parseDate(request.getReleaseEndDate()));
+//            } else {
+//                if(!CommonUtil.isNullOrEmpty(request.getReleaseStartDate())) {
+//                    sql.append(" AND mo.release_date >= :startDate ");
+//                    params.put("startDate", CommonUtil.parseDate(request.getReleaseStartDate()));
+//                }
+//                if(!CommonUtil.isNullOrEmpty(request.getReleaseEndDate())) {
+//                    sql.append(" AND mo.release_date <= :endDate ");
+//                    params.put("endDate", CommonUtil.parseDate(request.getReleaseEndDate()));
+//                }
+//            }
+//        }
         sql.append(" GROUP BY mo.id, mo.title, mo.description, mo.duration, mo.release_date, ");
         sql.append(" mo.rating_score, mo.imdb_rating, mo.rotten_tomatoes_score, ");
         sql.append(" mo.production_company, mo.budget, mo.box_office, mo.trailer_url, ");

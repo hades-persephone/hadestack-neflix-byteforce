@@ -1,5 +1,6 @@
-package io.watch.movie.util;
+package io.watch.movie.util.impl;
 
+import io.watch.movie.util.ValidEnum;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 

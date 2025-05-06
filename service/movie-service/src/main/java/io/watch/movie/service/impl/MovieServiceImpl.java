@@ -16,14 +16,19 @@ import io.watch.movie.service.MovieService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -96,6 +101,9 @@ public class MovieServiceImpl implements MovieService {
 
         movie = movieMapper.toEntity(request);
         movie.setCategories(fetchCategories(request.getCategoryIds()));
+        movie.setActors(fetchActors(request.getActorIds()));
+        movie.setDirectors(fetchDirectors(request.getDirectorIds()));
+        movie.setLanguages(fetchLanguages(request.getLanguageIds()));
 
         movie = movieRepository.save(movie);
         sendNotification("UPDATE_MOVIE", "Phim cập nhật: " + movie.getTitle());
@@ -145,6 +153,23 @@ public class MovieServiceImpl implements MovieService {
         movieRepository.save(movie);
 
         log.info("Incremented view count for movie ID: {}", movieId);
+    }
+
+    @Override
+    public byte[] exportMoviesTemplate(HttpServletRequest req) {
+        byte[] result = null;
+        try {
+            InputStream is = new ClassPathResource("/templates/export_template_import_movies.xlsx").getInputStream();
+            ByteArrayOutputStream byteArr = new ByteArrayOutputStream();
+            Workbook rsWorkbook = WorkbookFactory.create(is);
+            rsWorkbook.write(byteArr);
+            result = byteArr.toByteArray();
+            byteArr.close();
+            is.close();
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("Export movies template failed", e);
+        }
     }
 
     private void validateMovieRequest(MovieRequest request) {

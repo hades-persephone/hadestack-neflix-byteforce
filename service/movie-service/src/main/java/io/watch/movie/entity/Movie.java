@@ -3,6 +3,7 @@ package io.watch.movie.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.watch.movie.entity.substraction.*;
+import io.watch.movie.util.ValidEnum;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -30,6 +31,11 @@ public class Movie extends EntityBase {
     @Column(name = "title", nullable = false)
     @Schema(description  = "Title of the movie", example = "Inception")
     private String title;
+
+    @Column(unique = true, nullable = false, length = 50)
+    @Size(max = 50, message = "code cannot exceed 50 characters")
+    @Schema(description  = "Code of the movie", example = "A thief who steals secrets.")
+    private String code;
 
     @Column(name = "description")
     @Schema(description  = "Description of the movie", example = "A thief who steals secrets.")
@@ -100,7 +106,8 @@ public class Movie extends EntityBase {
     @Size(max = 10, message = "Age rating cannot exceed 10 characters")
     @Column(name = "age_rating")
     @Schema(description  = "Age rating", example = "PG-13")
-    private String ageRating;
+    @ValidEnum(enumClass = AgeRating.class)
+    private AgeRating ageRating;
 
     @Size(max = 50, message = "Country of origin cannot exceed 50 characters")
     @Column(name = "country_of_origin")

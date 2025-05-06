@@ -23,4 +23,5 @@ public interface MovieService {
     DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req);
     List<MovieResponse> getMoviesByCategory(UUID categoryId);
     void incrementViewCount(UUID movieId);
+    byte[] exportMoviesTemplate(HttpServletRequest req);
 }

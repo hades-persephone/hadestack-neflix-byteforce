@@ -1,5 +1,6 @@
 package io.watch.movie.util;
 
+import io.watch.movie.util.impl.PhoneValidator;
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
 import java.lang.annotation.ElementType;

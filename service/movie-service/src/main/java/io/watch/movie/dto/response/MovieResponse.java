@@ -91,4 +91,6 @@ public class MovieResponse {
     @Column(name = "languages")
     private String languageNames;
 
+    private LocalDateTime createdAt;
+
 }

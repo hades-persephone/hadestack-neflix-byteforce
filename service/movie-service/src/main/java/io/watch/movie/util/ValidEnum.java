@@ -1,6 +1,6 @@
 package io.watch.movie.util;
 
-import jakarta.servlet.annotation.*;
+import io.watch.movie.util.impl.EnumValidator;
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
 
