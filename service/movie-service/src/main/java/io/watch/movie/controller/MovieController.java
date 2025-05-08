@@ -90,7 +90,7 @@ public class MovieController {
             @ModelAttribute MovieRequestSearch request,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            HttpServletRequest req) {
+            HttpServletRequest req) throws NoSuchMethodException {
         Pageable pageable = PageRequest.of(page, size);
         return responseBuilder.success(movieService.searchMoviesByQuery(request, pageable, req), req);
     }

@@ -20,7 +20,7 @@ public interface MovieService {
     MovieResponse updateMovie(UUID id, MovieRequest request) throws JsonProcessingException;
     void deleteMovie(UUID id);
     Page<MovieResponse> searchMoviesByTitle(String title, Pageable pageable);
-    DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req);
+    DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req) throws NoSuchMethodException;
     List<MovieResponse> getMoviesByCategory(UUID categoryId);
     void incrementViewCount(UUID movieId);
     byte[] exportMoviesTemplate(HttpServletRequest req);
