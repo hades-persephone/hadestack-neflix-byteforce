@@ -46,6 +46,7 @@ public class Movie extends EntityBase {
     @Schema(description  = "Duration in minutes", example = "148")
     private int duration;
 
+    //    @JsonFormat(pattern = "yyyy-MM-dd", shape = JsonFormat.Shape.STRING)
     @PastOrPresent(message = "Release date must be in the past or present")
     @Column(name = "release_date")
     @Schema(description  = "Release date", example = "2010-07-16")

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.watch.basedata.data.common.BaseNativeQueryExecutor;
 import io.watch.basedata.dto.DataResults;
+import io.watch.movie.config.cache.CustomCacheKeyGenerator;
 import io.watch.movie.dto.MovieNotificationDTO;
 import io.watch.movie.dto.mapper.MovieMapper;
 import io.watch.movie.dto.request.MovieRequest;
@@ -13,6 +14,7 @@ import io.watch.movie.entity.*;
 import io.watch.movie.exception.MovieNotFoundException;
 import io.watch.movie.repository.*;
 import io.watch.movie.service.MovieService;
+import io.watch.movie.util.ReadOnly;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.Optional;
 
@@ -48,13 +52,49 @@ public class MovieServiceImpl implements MovieService {
     private final LanguageRepository languageRepository;
     private final ActorRepository actorRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final RedisTemplate<String, Object> redisTemplate;
     private final MovieMapper movieMapper;
     private final BaseNativeQueryExecutor query;
     private final ObjectMapper objectMapper;
+    private final CustomCacheKeyGenerator keyGenerator;
 
     @Override
-    public DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req) {
-        return movieRepository.search(query, request, pageable, req);
+    @ReadOnly
+    @Cacheable(value = "movies", keyGenerator = "customCacheKeyGenerator")
+    public DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req) throws NoSuchMethodException {
+
+        String generatedKey = (String) keyGenerator.generate(
+                this,
+                this.getClass().getMethod("searchMoviesByQuery", MovieRequestSearch.class, Pageable.class, HttpServletRequest.class),
+                request, pageable, req
+        );
+
+        try {
+            Object cachedValue = redisTemplate.opsForValue().get(generatedKey);
+
+            if (cachedValue != null) {
+                if (cachedValue instanceof DataResults) {
+                    return (DataResults<MovieResponse>) cachedValue;
+                }
+
+                String json = objectMapper.writeValueAsString(cachedValue);
+                return objectMapper.readValue(json,
+                        objectMapper.getTypeFactory().constructParametricType(
+                                DataResults.class, MovieResponse.class));
+            }
+        } catch (Exception e) {
+            log.error("Error retrieving from cache: {}", e.getMessage());
+            redisTemplate.delete(generatedKey);
+        }
+        DataResults<MovieResponse> result = movieRepository.search(query, request, pageable, req);
+
+        try {
+            redisTemplate.opsForValue().set(generatedKey, result, 60, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.error("Error caching result: {}", e.getMessage());
+        }
+
+        return result;
     }
 
     @Override

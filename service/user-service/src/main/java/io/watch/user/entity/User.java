@@ -1,13 +1,21 @@
 package io.watch.user.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.watch.movie.entity.substraction.AccountStatus;
-import io.watch.movie.entity.substraction.Gender;
+import io.watch.user.entity.substraction.AccountStatus;
+import io.watch.user.entity.substraction.Gender;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Data
@@ -16,7 +24,7 @@ import java.util.UUID;
 @Schema(description = "User entity representing a system user")
 public class User {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", updatable = false, nullable = false, columnDefinition = "UUID DEFAULT gen_random_uuid()")
     @Schema(description = "Unique identifier of the user", example = "550e8400-e29b-41d4-a716-446655440000")
     private UUID id;
@@ -112,7 +120,6 @@ public class User {
     private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")
-    @UpdateTimestamp
     @Schema(description = "Deletion timestamp", example = "null")
     private LocalDateTime deletedAt;
 
@@ -123,4 +130,18 @@ public class User {
     @Column(name = "updated_by")
     @Schema(description = "ID of user who updated this record", example = "1")
     private Long updatedBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id", referencedColumnName = "id")
+    @Schema(description = "Department the user belongs to")
+    private Department department;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    @Schema(description = "Roles assigned to the user")
+    private Set<Role> roles = new HashSet<>();
 }
