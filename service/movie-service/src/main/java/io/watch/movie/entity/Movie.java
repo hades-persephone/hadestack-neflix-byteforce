@@ -104,10 +104,9 @@ public class Movie extends EntityBase {
     @Schema(description  = "Video quality", example = "UHD_4K")
     private VideoQuality videoQuality;
 
-    @Size(max = 10, message = "Age rating cannot exceed 10 characters")
     @Column(name = "age_rating")
     @Schema(description  = "Age rating", example = "PG-13")
-    @ValidEnum(enumClass = AgeRating.class)
+    @Enumerated(EnumType.STRING)
     private AgeRating ageRating;
 
     @Size(max = 50, message = "Country of origin cannot exceed 50 characters")

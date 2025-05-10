@@ -20,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
@@ -42,8 +44,9 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class MovieServiceImpl implements MovieService {
+
+    private static final Logger log = LoggerFactory.getLogger(MovieServiceImpl.class);
 
     private final MovieRepository movieRepository;
     private final CategoryRepository categoryRepository;
@@ -73,23 +76,27 @@ public class MovieServiceImpl implements MovieService {
             Object cachedValue = redisTemplate.opsForValue().get(generatedKey);
 
             if (cachedValue != null) {
+                log.debug("Cache hit for key: {}", generatedKey);
                 if (cachedValue instanceof DataResults) {
                     return (DataResults<MovieResponse>) cachedValue;
                 }
 
                 String json = objectMapper.writeValueAsString(cachedValue);
-                return objectMapper.readValue(json,
+                DataResults<MovieResponse> converted = objectMapper.readValue(json,
                         objectMapper.getTypeFactory().constructParametricType(
                                 DataResults.class, MovieResponse.class));
+                log.debug("Successfully converted cache value from {} to DataResults", cachedValue.getClass().getName());
+                return converted;
             }
         } catch (Exception e) {
             log.error("Error retrieving from cache: {}", e.getMessage());
             redisTemplate.delete(generatedKey);
         }
+        log.debug("Cache miss for key: {}", generatedKey);
         DataResults<MovieResponse> result = movieRepository.search(query, request, pageable, req);
-
         try {
             redisTemplate.opsForValue().set(generatedKey, result, 60, TimeUnit.MINUTES);
+            log.debug("Successfully cached search results");
         } catch (Exception e) {
             log.error("Error caching result: {}", e.getMessage());
         }

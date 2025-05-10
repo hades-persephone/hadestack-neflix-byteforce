@@ -36,6 +36,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <debezium.version>3.1.1.Final</debezium.version>
     </properties>
     <dependencies>
         <dependency>
@@ -88,6 +89,23 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>2.8.6</version>
+        </dependency>
+
+        <!-- Debezium (CDC) -->
+        <dependency>
+            <groupId>io.debezium</groupId>
+            <artifactId>debezium-api</artifactId>
+            <version>${debezium.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.debezium</groupId>
+            <artifactId>debezium-connector-postgres</artifactId>
+            <version>${debezium.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.debezium</groupId>
+            <artifactId>debezium-embedded</artifactId>
+            <version>${debezium.version}</version>
         </dependency>
 
         <!-- JSON & GSON-->

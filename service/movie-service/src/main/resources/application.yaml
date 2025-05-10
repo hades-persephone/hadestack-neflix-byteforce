@@ -1,0 +1,8 @@
+cdc:
+  tables:
+    - name: users
+      topic: users
+    - name: products
+      topic: products
+    - name: orders
+      topic: orders

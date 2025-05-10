@@ -7,13 +7,14 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @MappedSuperclass
 @Getter
 @Setter
-public abstract class EntityBase {
+public abstract class EntityBase implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(updatable = false, nullable = false, columnDefinition = "UUID DEFAULT gen_random_uuid()")

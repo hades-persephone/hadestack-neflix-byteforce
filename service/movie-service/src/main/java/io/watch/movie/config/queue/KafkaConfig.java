@@ -1,9 +1,12 @@
 package io.watch.movie.config.queue;
 
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,10 +16,14 @@ import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.ProducerListener;
+import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableKafka
@@ -24,6 +31,9 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
+
+    @Value("${cdc.topics.prefix}")
+    private String topicPrefix;
 
     // ---------- Producer ----------
     @Bean
@@ -41,12 +51,43 @@ public class KafkaConfig {
         return new DefaultKafkaProducerFactory<>(props);
     }
 
+    // Cấu hình cho KafkaTemplate kiểu String
     @Bean
-    public KafkaTemplate<String, String> kafkaTemplate() {
-        KafkaTemplate<String, String> template = new KafkaTemplate<>(producerFactory());
-        template.setProducerListener(new KafkaProducerLogger());
-        return template;
+    public KafkaTemplate<String, String> stringKafkaTemplate() {
+        return new KafkaTemplate<>(stringProducerFactory());
     }
+
+    @Bean
+    public ProducerFactory<String, String> stringProducerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        return new DefaultKafkaProducerFactory<>(props);
+    }
+
+    // Cấu hình cho KafkaTemplate kiểu Map<String, Object>
+    @Bean
+    public KafkaTemplate<String, Map<String, Object>> mapKafkaTemplate() {
+        return new KafkaTemplate<>(mapProducerFactory());
+    }
+
+    @Bean
+    public ProducerFactory<String, Map<String, Object>> mapProducerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        return new DefaultKafkaProducerFactory<>(props);
+    }
+
+    @Bean
+    public KafkaAdmin kafkaAdmin() {
+        Map<String, Object> configs = new HashMap<>();
+        configs.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        return new KafkaAdmin(configs);
+    }
+
 
     // ---------- Consumer ----------
     @Bean
@@ -67,18 +108,30 @@ public class KafkaConfig {
         var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
         factory.setConsumerFactory(consumerFactory());
         factory.setConcurrency(3);
-        factory.setCommonErrorHandler(errorHandler());
+        factory.setCommonErrorHandler(stringErrorHandler(stringKafkaTemplate()));
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         return factory;
     }
 
     @Bean
-    public DefaultErrorHandler errorHandler() {
+    public DefaultErrorHandler stringErrorHandler(
+            @Qualifier("stringKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate) {
+        return createHandler(kafkaTemplate);
+    }
+
+    @Bean
+    public DefaultErrorHandler mapErrorHandler(
+            @Qualifier("mapKafkaTemplate") KafkaTemplate<String, Map<String, Object>> kafkaTemplate) {
+        return createHandler(kafkaTemplate);
+    }
+
+    private <K, V> DefaultErrorHandler createHandler(KafkaTemplate<K, V> kafkaTemplate) {
         FixedBackOff fixedBackOff = new FixedBackOff(2000L, 3);
-        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate());
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate);
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, fixedBackOff);
         errorHandler.addNotRetryableExceptions(IllegalArgumentException.class);
         return errorHandler;
     }
+
 }
 
