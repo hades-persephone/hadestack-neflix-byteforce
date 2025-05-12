@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * DTO for authentication responses.
@@ -16,7 +17,7 @@ import java.util.List;
 @AllArgsConstructor
 public class AuthResponse {
 
-    private Long userId;
+    private UUID userId;
     private String username;
     private String email;
     private String fullName;

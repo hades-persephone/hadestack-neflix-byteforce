@@ -2,15 +2,17 @@ package io.watch.auth.repository;
 
 import io.watch.auth.entity.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository for managing Role entities.
  */
 @Repository
-public interface RoleRepository extends JpaRepository<Role, Long> {
+public interface RoleRepository extends JpaRepository<Role, UUID> {
     
     /**
      * Find a role by name.

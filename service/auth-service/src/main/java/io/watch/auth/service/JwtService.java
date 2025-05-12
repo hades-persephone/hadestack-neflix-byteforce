@@ -9,11 +9,9 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.security.Key;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtService {
@@ -26,21 +24,24 @@ public class JwtService {
     @Value("${jwt.refresh-token-expiration}")
     private Long refreshTokenExpiration;
 
-    public String generateToken(String username, Long userId, List<String> roles, List<String> permissions) {
+    public String generateToken(String username, UUID userId, List<String> roles, List<String> permissions) {
         return getClaimsMap(username, userId, roles, permissions, accessTokenExpiration);
     }
 
-    public String generateRefreshToken(String username, Long userId, List<String> roles, List<String> permissions) {
+    public String generateRefreshToken(String username, UUID userId, List<String> roles, List<String> permissions) {
         return getClaimsMap(username, userId, roles, permissions, refreshTokenExpiration);
     }
 
 
-    private String getClaimsMap(String username, Long userId, List<String> roles, List<String> permissions, Long tokenExpiration) {
+    private String getClaimsMap(String username, UUID userId, List<String> roles, List<String> permissions, Long tokenExpiration) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId);
+        claims.put("user_id", userId);
         claims.put("roles", roles);
         claims.put("permissions", permissions);
-        claims.put("scope", "read write");
+        claims.put("expires_in", tokenExpiration);
+        claims.put("scope", permissions.stream()
+                .map(p -> p.substring(p.indexOf(":") + 1))
+                .collect(Collectors.toSet()));
         return createToken(claims, username, tokenExpiration);
     }
 
@@ -51,6 +52,7 @@ public class JwtService {
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSignInKey())
+//                .signWith(SignatureAlgorithm.HS512, getSignInKey())
                 .compact();
     }
 

@@ -91,6 +91,18 @@ public class User {
     @Schema(description = "End date of subscription", example = "2025-12-31")
     private LocalDate subscriptionEndDate;
 
+    @Column(name = "enabled")
+    private boolean enabled = true;
+
+    @Column(name = "account_non_expired")
+    private boolean accountNonExpired = true;
+
+    @Column(name = "credentials_non_expired")
+    private boolean credentialsNonExpired = true;
+
+    @Column(name = "account_non_locked")
+    private boolean accountNonLocked = true;
+
     @Column(name = "last_login")
     @Schema(description = "Last login timestamp", example = "2025-04-10T10:00:00Z")
     private LocalDateTime lastLogin;

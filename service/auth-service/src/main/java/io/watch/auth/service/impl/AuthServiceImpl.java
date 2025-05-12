@@ -9,6 +9,7 @@ import io.watch.auth.entity.Permission;
 import io.watch.auth.entity.RefreshToken;
 import io.watch.auth.entity.Role;
 import io.watch.auth.entity.User;
+import io.watch.auth.entity.substraction.AccountStatus;
 import io.watch.auth.repository.RefreshTokenRepository;
 import io.watch.auth.repository.RoleRepository;
 import io.watch.auth.repository.UserRepository;
@@ -25,25 +26,21 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Implementation of the AuthService interface.
- */
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
     
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
     
-    private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -51,9 +48,6 @@ public class AuthServiceImpl implements AuthService {
     private final WebClient userServiceWebClient;
     private final RefreshTokenRepository refreshTokenRepository;
 
-
-    @Value("${jwt.refresh-token-expiration}")
-    private Long refreshTokenExpiration;
 
     @Override
     @CircuitBreaker(name = "userService", fallbackMethod = "loginFallback")
@@ -90,6 +84,7 @@ public class AuthServiceImpl implements AuthService {
 
 
     @Override
+    @Transactional
     public Mono<AuthResponse> refreshToken(RefreshTokenRequest request) {
         return Mono.fromCallable(() -> refreshTokenRepository.findByToken(request.getRefreshToken()))
                 .subscribeOn(Schedulers.boundedElastic())
@@ -139,6 +134,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public AuthResponse register(RegisterRequest registerRequest) {
         // Check if the username or email already exists
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
@@ -156,8 +152,12 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(registerRequest.getEmail());
         user.setFullName(registerRequest.getFullName());
 
-        // Assign the USER role by default
-        Role userRole = roleRepository.findByName("USER")
+        if (user.getAccountStatus() == null) {
+            user.setAccountStatus(AccountStatus.ACTIVE);
+        }
+
+        user.setRoles(Collections.synchronizedSet(new HashSet<>()));
+        Role userRole = roleRepository.findByName("ROLE_USER")
                 .orElseThrow(() -> new RuntimeException("Default role not found"));
         user.addRole(userRole);
 
@@ -171,7 +171,7 @@ public class AuthServiceImpl implements AuthService {
         
         List<String> permissions = user.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> permission.getName())
+                .map(Permission::getName)
                 .distinct()
                 .collect(Collectors.toList());
         
@@ -224,7 +224,7 @@ public class AuthServiceImpl implements AuthService {
         
         List<String> permissions = user.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> permission.getName())
+                .map(Permission::getName)
                 .distinct()
                 .collect(Collectors.toList());
         
@@ -252,7 +252,7 @@ public class AuthServiceImpl implements AuthService {
                 });
     }
 
-    private Mono<User> validateUserById(Long userId) {
+    private Mono<User> validateUserById(UUID userId) {
         return userServiceWebClient.get()
                 .uri("/users/{userId}", userId)
                 .retrieve()

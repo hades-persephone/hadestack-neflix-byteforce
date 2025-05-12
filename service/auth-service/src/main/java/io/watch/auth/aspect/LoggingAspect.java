@@ -25,6 +25,7 @@ public class LoggingAspect {
     public void logMethodEntry(JoinPoint joinPoint) {
         String methodName = joinPoint.getSignature().toShortString();
         Object[] args = joinPoint.getArgs();
+        log.info("Start request");
         log.info("Entering method: {} with arguments: {}", methodName, args);
         circuitBreakerRegistry.getAllCircuitBreakers().forEach(cb -> {
             log.info("CircuitBreaker {} state: {}", cb.getName(), cb.getState());
@@ -35,11 +36,13 @@ public class LoggingAspect {
     public void logMethodSuccess(JoinPoint joinPoint, Object result) {
         String methodName = joinPoint.getSignature().toShortString();
         log.info("Method {} executed successfully, returning: {}", methodName, result);
+        log.info("End request");
     }
 
     @AfterThrowing(pointcut = "serviceMethods()", throwing = "ex")
     public void logMethodException(JoinPoint joinPoint, Throwable ex) {
         String methodName = joinPoint.getSignature().toShortString();
         log.error("Exception in method {}: {}", methodName, ex.getMessage(), ex);
+        log.info("End request");
     }
 }

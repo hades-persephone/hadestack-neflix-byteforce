@@ -1,5 +1,6 @@
 package io.watch.auth.config.shared;
 
+import org.jetbrains.annotations.NotNull;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,14 +32,13 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
      * @return the authentication token with authorities
      */
     @Override
-    public AbstractAuthenticationToken convert(Jwt jwt) {
-        Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
-        
+    public AbstractAuthenticationToken convert(@NotNull Jwt jwt) {
+
         // Add default authorities (scopes)
-        authorities.addAll(defaultConverter.convert(jwt)
+        Collection<SimpleGrantedAuthority> authorities = new ArrayList<>(defaultConverter.convert(jwt)
                 .stream()
                 .map(a -> new SimpleGrantedAuthority(a.getAuthority()))
-                .collect(Collectors.toList()));
+                .toList());
         
         // Extract roles from the JWT token
         List<String> roles = extractRoles(jwt);
@@ -55,7 +55,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
         if (permissions != null) {
             authorities.addAll(permissions.stream()
                     .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList()));
+                    .toList());
         }
         
         return new JwtAuthenticationToken(jwt, authorities);

@@ -1,0 +1,318 @@
+package io.watch.history.service;
+
+import io.watch.history.dto.ActionRecord;
+import io.watch.history.entity.ActionRecordEntities.*;
+import io.watch.history.repository.ActionHistoryRepositories.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.cassandra.core.CassandraOperations;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class ActionHistoryService {
+
+    private final ActionHistoryByEntityRepository byEntityRepository;
+    private final ActionHistoryByUserRepository byUserRepository;
+    private final ActionHistoryByActionRepository byActionRepository;
+    private final ActionHistoryByTimeRepository byTimeRepository;
+    private final ActionHistoryStatsRepository statsRepository;
+    private final CassandraOperations cassandraTemplate;
+
+    @Value("${action-history.async-processing:true}")
+    private boolean asyncProcessing;
+
+    @Value("${action-history.batch-size:100}")
+    private int batchSize;
+
+    /**
+     * Record a single action
+     *
+     * @param actionRecord The action record to save
+     * @return CompletableFuture that completes when the record is saved
+     */
+    public CompletableFuture<Void> recordAction(ActionRecord actionRecord) {
+        if (asyncProcessing) {
+            return saveActionAsync(actionRecord);
+        } else {
+            saveAction(actionRecord);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /**
+     * Record multiple actions in batch
+     *
+     * @param actionRecords List of action records to save
+     * @return CompletableFuture that completes when all records are saved
+     */
+    public CompletableFuture<Void> recordActions(List<ActionRecord> actionRecords) {
+        if (asyncProcessing) {
+            return saveActionsAsync(actionRecords);
+        } else {
+            saveActions(actionRecords);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /**
+     * Get action history for an entity
+     *
+     * @param entityType Type of the entity
+     * @param entityId   ID of the entity
+     * @param limit      Maximum number of records to return
+     * @return List of action records
+     */
+    public List<ActionRecord> getActionHistoryForEntity(
+            String entityType, String entityId, int limit) {
+
+        Slice<ActionHistoryByEntity> results = byEntityRepository.findByEntityTypeAndEntityId(
+                entityType, entityId, PageRequest.of(0, limit));
+
+        return results.getContent().stream()
+                .map(this::mapToActionRecord)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get action history for a user
+     *
+     * @param userId ID of the user
+     * @param limit  Maximum number of records to return
+     * @return List of action records
+     */
+    public List<ActionRecord> getActionHistoryForUser(String userId, int limit) {
+        Slice<ActionHistoryByUser> results = byUserRepository.findByUserId(
+                userId, PageRequest.of(0, limit));
+
+        return results.getContent().stream()
+                .map(this::mapToActionRecord)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get action history for a specific action type
+     *
+     * @param actionType Type of action
+     * @param limit      Maximum number of records to return
+     * @return List of action records
+     */
+    public List<ActionRecord> getActionHistoryByType(String actionType, int limit) {
+        Slice<ActionHistoryByAction> results = byActionRepository.findByActionType(
+                actionType, PageRequest.of(0, limit));
+
+        return results.getContent().stream()
+                .map(this::mapToActionRecord)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get action history for a specific time period
+     *
+     * @param yearMonth Year and month in format YYYY-MM
+     * @param limit     Maximum number of records to return
+     * @return List of action records
+     */
+    public List<ActionRecord> getActionHistoryByTime(String yearMonth, int limit) {
+        Slice<ActionHistoryByTime> results = byTimeRepository.findByYearMonth(
+                yearMonth, PageRequest.of(0, limit));
+
+        return results.getContent().stream()
+                .map(this::mapToActionRecord)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get action counts by entity type and action type
+     *
+     * @param entityType Type of the entity
+     * @param actionType Type of action
+     * @return Map of year-month to count
+     */
+    public Map<String, Long> getActionCounts(String entityType, String actionType) {
+        List<ActionHistoryStats> stats = statsRepository.findByEntityTypeAndActionType(
+                entityType, actionType);
+
+        return stats.stream().collect(
+                Collectors.toMap(ActionHistoryStats::getYearMonth, ActionHistoryStats::getCount));
+    }
+
+    /**
+     * Save an action record synchronously
+     */
+    private void saveAction(ActionRecord actionRecord) {
+        // If action timestamp is not set, use current time
+        if (actionRecord.getActionTimestamp() == null) {
+            actionRecord.setActionTimestamp(Instant.now());
+        }
+
+        // Save to all tables
+        byEntityRepository.save(ActionHistoryByEntity.fromActionRecord(actionRecord));
+        byUserRepository.save(ActionHistoryByUser.fromActionRecord(actionRecord));
+        byActionRepository.save(ActionHistoryByAction.fromActionRecord(actionRecord));
+        byTimeRepository.save(ActionHistoryByTime.fromActionRecord(actionRecord));
+
+        // Update stats counter
+        statsRepository.incrementCount(
+                actionRecord.getEntityType(),
+                actionRecord.getActionType(),
+                actionRecord.getYearMonth());
+
+        log.debug("Saved action record: {}", actionRecord);
+    }
+
+    /**
+     * Save an action record asynchronously
+     */
+    @Async
+    protected CompletableFuture<Void> saveActionAsync(ActionRecord actionRecord) {
+        try {
+            saveAction(actionRecord);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("Error saving action record asynchronously", e);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Save action records in batch
+     */
+    private void saveActions(List<ActionRecord> actionRecords) {
+        if (actionRecords == null || actionRecords.isEmpty()) {
+            return;
+        }
+
+        // Set timestamp if not present
+        actionRecords.forEach(record -> {
+            if (record.getActionTimestamp() == null) {
+                record.setActionTimestamp(Instant.now());
+            }
+        });
+
+        // Process in batches to avoid overwhelming Cassandra
+        List<List<ActionRecord>> batches = new ArrayList<>();
+        for (int i = 0; i < actionRecords.size(); i += batchSize) {
+            batches.add(actionRecords.subList(i, Math.min(i + batchSize, actionRecords.size())));
+        }
+
+        for (List<ActionRecord> batch : batches) {
+            // Convert to entity-specific records
+            List<ActionHistoryByEntity> byEntityRecords = batch.stream()
+                    .map(ActionHistoryByEntity::fromActionRecord)
+                    .collect(Collectors.toList());
+
+            List<ActionHistoryByUser> byUserRecords = batch.stream()
+                    .map(ActionHistoryByUser::fromActionRecord)
+                    .collect(Collectors.toList());
+
+            List<ActionHistoryByAction> byActionRecords = batch.stream()
+                    .map(ActionHistoryByAction::fromActionRecord)
+                    .collect(Collectors.toList());
+
+            List<ActionHistoryByTime> byTimeRecords = batch.stream()
+                    .map(ActionHistoryByTime::fromActionRecord)
+                    .collect(Collectors.toList());
+
+            // Batch save
+            byEntityRepository.saveAll(byEntityRecords);
+            byUserRepository.saveAll(byUserRecords);
+            byActionRepository.saveAll(byActionRecords);
+            byTimeRepository.saveAll(byTimeRecords);
+
+            // Update stats counters
+            batch.forEach(record ->
+                    statsRepository.incrementCount(
+                            record.getEntityType(),
+                            record.getActionType(),
+                            record.getYearMonth())
+            );
+        }
+
+        log.debug("Saved {} action records in batches", actionRecords.size());
+    }
+
+    /**
+     * Save action records asynchronously in batch
+     */
+    @Async
+    protected CompletableFuture<Void> saveActionsAsync(List<ActionRecord> actionRecords) {
+        try {
+            saveActions(actionRecords);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("Error saving action records asynchronously", e);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Map entity-specific records to the generic ActionRecord model
+     */
+    private ActionRecord mapToActionRecord(ActionHistoryByEntity record) {
+        return ActionRecord.builder()
+                .entityType(record.getEntityType())
+                .entityId(record.getEntityId())
+                .actionTimestamp(record.getActionTimestamp())
+                .actionType(record.getActionType())
+                .userId(record.getUserId())
+                .details(record.getDetails())
+                .sourceIp(record.getSourceIp())
+                .userAgent(record.getUserAgent())
+                .build();
+    }
+
+    private ActionRecord mapToActionRecord(ActionHistoryByUser record) {
+        return ActionRecord.builder()
+                .entityType(record.getEntityType())
+                .entityId(record.getEntityId())
+                .actionTimestamp(record.getActionTimestamp())
+                .actionType(record.getActionType())
+                .userId(record.getUserId())
+                .details(record.getDetails())
+                .sourceIp(record.getSourceIp())
+                .userAgent(record.getUserAgent())
+                .build();
+    }
+
+    private ActionRecord mapToActionRecord(ActionHistoryByAction record) {
+        return ActionRecord.builder()
+                .entityType(record.getEntityType())
+                .entityId(record.getEntityId())
+                .actionTimestamp(record.getActionTimestamp())
+                .actionType(record.getActionType())
+                .userId(record.getUserId())
+                .details(record.getDetails())
+                .sourceIp(record.getSourceIp())
+                .userAgent(record.getUserAgent())
+                .build();
+    }
+
+    private ActionRecord mapToActionRecord(ActionHistoryByTime record) {
+        return ActionRecord.builder()
+                .entityType(record.getEntityType())
+                .entityId(record.getEntityId())
+                .actionTimestamp(record.getActionTimestamp())
+                .actionType(record.getActionType())
+                .userId(record.getUserId())
+                .details(record.getDetails())
+                .sourceIp(record.getSourceIp())
+                .userAgent(record.getUserAgent())
+                .build();
+    }
+}

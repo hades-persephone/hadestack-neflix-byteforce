@@ -26,22 +26,6 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
 
     @Override
-    @Transactional
-    public UserDTO createUser(UserDTO userDTO) {
-        if (userRepository.existsByUsername(userDTO.getUsername())) {
-            throw new IllegalArgumentException("Username already exists");
-        }
-        if (userRepository.existsByEmail(userDTO.getEmail())) {
-            throw new IllegalArgumentException("Email already exists");
-        }
-
-        User user = new User();
-        mapToEntity(userDTO, user);
-        User savedUser = userRepository.save(user);
-        return mapToDTO(savedUser);
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public UserDTO getUserById(UUID id) {
         User user = userRepository.findById(id)
