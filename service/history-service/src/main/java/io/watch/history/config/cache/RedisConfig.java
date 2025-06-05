@@ -1,4 +1,4 @@
-package io.watch.movie.config.cache;
+package io.watch.history.config.cache;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -84,16 +84,13 @@ public class RedisConfig {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true);
         mapper.configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
-
         return mapper;
     }
 
     @Bean
     public RedisCacheManager redisCacheManager(RedisConnectionFactory redisConnectionFactory) {
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
-        cacheConfigurations.put("movies", createDefaultCacheConfig(Duration.ofDays(moviesTtlDays)));
-        cacheConfigurations.put("series", createDefaultCacheConfig(Duration.ofDays(seriesTtlDays)));
-        cacheConfigurations.put("directors", createDefaultCacheConfig(Duration.ofMinutes(20)));
+        cacheConfigurations.put("history", createDefaultCacheConfig(Duration.ofDays(moviesTtlDays)));
 
         return RedisCacheManager.builder(redisConnectionFactory)
                 .cacheDefaults(cacheConfiguration())
@@ -122,7 +119,6 @@ public class RedisConfig {
     }
 
     private RedisCacheConfiguration createDefaultCacheConfig(Duration ttl) {
-
         return RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(ttl)
                 .disableCachingNullValues()

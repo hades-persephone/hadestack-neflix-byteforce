@@ -4,11 +4,14 @@ import io.watch.history.annotation.RecordAction;
 import io.watch.history.dto.ActionRecord;
 import io.watch.history.service.ActionHistoryService;
 import io.watch.history.util.ActionRecordBuilder;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -33,6 +36,7 @@ public class RecordActionAspect {
 
     private final ActionHistoryService actionHistoryService;
     private final ExpressionParser parser = new SpelExpressionParser();
+    private final HttpServletRequest request;
 
     @Around("@annotation(io.watch.history.annotation.RecordAction)")
     public Object recordAction(ProceedingJoinPoint joinPoint) throws Throwable {

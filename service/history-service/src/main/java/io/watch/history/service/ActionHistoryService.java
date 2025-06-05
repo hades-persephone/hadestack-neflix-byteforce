@@ -1,24 +1,36 @@
 package io.watch.history.service;
 
+import com.datastax.oss.driver.api.core.NoNodeAvailableException;
+import com.datastax.oss.driver.api.core.cql.BatchStatement;
+import com.datastax.oss.driver.api.core.cql.BatchStatementBuilder;
+import com.datastax.oss.driver.api.core.cql.DefaultBatchType;
+import com.datastax.oss.driver.api.core.cql.SimpleStatement;
+import io.netty.handler.timeout.WriteTimeoutException;
 import io.watch.history.dto.ActionRecord;
-import io.watch.history.entity.ActionRecordEntities.*;
-import io.watch.history.repository.ActionHistoryRepositories.*;
+import io.watch.history.entity.*;
+import io.watch.history.handler.UserActivityFailureHandler;
+import io.watch.history.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.cassandra.core.CassandraOperations;
+import org.springframework.data.cassandra.core.CassandraTemplate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -32,7 +44,11 @@ public class ActionHistoryService {
     private final ActionHistoryByActionRepository byActionRepository;
     private final ActionHistoryByTimeRepository byTimeRepository;
     private final ActionHistoryStatsRepository statsRepository;
-    private final CassandraOperations cassandraTemplate;
+    private final UserActivityFailureHandler failureHandler;
+    private final CassandraOperations cassandraOperations;
+    private final CassandraTemplate cassandraTemplate;
+    private final RetryTemplate retryTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Value("${action-history.async-processing:true}")
     private boolean asyncProcessing;
@@ -46,6 +62,11 @@ public class ActionHistoryService {
      * @param actionRecord The action record to save
      * @return CompletableFuture that completes when the record is saved
      */
+    @Retryable(
+            retryFor = {WriteTimeoutException.class, NoNodeAvailableException.class},
+            maxAttempts = 5,
+            backoff = @Backoff(delay = 1000, multiplier = 2, random = true)
+    )
     public CompletableFuture<Void> recordAction(ActionRecord actionRecord) {
         if (asyncProcessing) {
             return saveActionAsync(actionRecord);
@@ -61,6 +82,11 @@ public class ActionHistoryService {
      * @param actionRecords List of action records to save
      * @return CompletableFuture that completes when all records are saved
      */
+    @Retryable(
+            retryFor = {WriteTimeoutException.class, NoNodeAvailableException.class},
+            maxAttempts = 5,
+            backoff = @Backoff(delay = 1000, multiplier = 2, random = true)
+    )
     public CompletableFuture<Void> recordActions(List<ActionRecord> actionRecords) {
         if (asyncProcessing) {
             return saveActionsAsync(actionRecords);
@@ -68,6 +94,96 @@ public class ActionHistoryService {
             saveActions(actionRecords);
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    @Retryable(
+            retryFor = {WriteTimeoutException.class, NoNodeAvailableException.class},
+            maxAttempts = 5,
+            backoff = @Backoff(delay = 1000, multiplier = 2, random = true)
+    )
+    @Async
+    public CompletableFuture<Void> saveUserActivityWithRetry(ActionHistoryByAction activity) {
+        try {
+            log.debug("Attempting to save user activity: {}", activity.getId());
+            cassandraTemplate.insert(activity);
+            log.info("Successfully saved user activity: {}", activity.getId());
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("Failed to save user activity: {}, Error: {}",
+                    activity.getId(), e.getMessage());
+            throw e;
+        }
+    }
+
+    @Recover
+    public CompletableFuture<Void> recoverSaveUserActivity(WriteTimeoutException ex, ActionHistoryByAction activity) {
+        log.error("All retry attempts failed for user activity: {}, sending to DLQ",
+                activity.getId(), ex);
+
+        // Send to Dead Letter Queue hoặc alternative storage
+        failureHandler.handleFailedWrite(activity, ex);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    // Manual retry với RetryTemplate
+    public void saveUserActivityManualRetry(ActionHistoryByAction activity) {
+        try {
+            retryTemplate.execute(context -> {
+                log.debug("Retry attempt {} for activity: {}",
+                        context.getRetryCount() + 1, activity.getId());
+                cassandraTemplate.insert(activity);
+                return null;
+            }, context -> {
+                // Recovery callback
+                log.error("Manual retry failed after {} attempts for activity: {}",
+                        context.getRetryCount(), activity.getId());
+                failureHandler.handleFailedWrite(activity, (Exception) context.getLastThrowable());
+                return null;
+            });
+        } catch (Exception e) {
+            log.error("Unexpected error in manual retry", e);
+        }
+    }
+
+    // Batch operations với retry
+    @Retryable(
+            retryFor = {WriteTimeoutException.class, NoNodeAvailableException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 1.5)
+    )
+    public void saveBatchUserActivities(List<ActionHistoryByAction> activities) {
+        BatchStatementBuilder batchBuilder = BatchStatement.builder(DefaultBatchType.LOGGED);
+
+        for (ActionHistoryByAction activity : activities) {
+            SimpleStatement statement = SimpleStatement.builder(
+                            "INSERT INTO user_activities (user_id, activity_date, timestamp, activity_type, item_id, metadata) " +
+                                    "VALUES (?, ?, ?, ?, ?, ?)"
+                    )
+                    .addPositionalValues(
+                            activity.getUserId(),
+                            activity.getActionTimestamp()
+                    )
+                    .build();
+
+            batchBuilder.addStatement(statement);
+        }
+
+        cassandraTemplate.getCqlOperations().execute(batchBuilder.build());
+        log.info("Successfully saved batch of {} activities", activities.size());
+    }
+
+    @Recover
+    public void recoverSaveBatchUserActivities(Exception ex, List<ActionHistoryByAction> activities) {
+        log.error("Batch retry failed for {} activities", activities.size(), ex);
+
+        // Try individual saves as fallback
+        activities.forEach(activity -> {
+            try {
+                saveUserActivityWithRetry(activity);
+            } catch (Exception e) {
+                failureHandler.handleFailedWrite(activity, e);
+            }
+        });
     }
 
     /**

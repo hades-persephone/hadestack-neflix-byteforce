@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
@@ -38,11 +39,21 @@ public class SearchServiceImpl {
 
         return profileValidation.then(Mono.defer(() -> {
             // Perform Elasticsearch search
-            ElasSearchResponse response = elasticsearchSearchService.searchMovies(
-                    request.getQuery(),
-                    request.getPage() != null ? request.getPage() : 0,
-                    request.getSize() != null ? request.getSize() : 10
-            );
+            ElasSearchResponse response = null;
+            try {
+                response = elasticsearchSearchService.searchMovies(
+                        request.getQuery(),                    // keyword
+                        request.getGenre(),                   // genre
+                        request.getMinScore(),                // minScore
+                        request.getMaxScore(),                // maxScore
+                        request.getPage() != null ? request.getPage() : 0,
+                        request.getSize() != null ? request.getSize() : 10,
+                        request.getSortBy() != null ? request.getSortBy() : "score",
+                        request.getAscending() != null ? request.getAscending() : false
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
 
             // Personalize results if userId and profileId are provided
             if (request.getUserId() != null && request.getProfileId() != null) {
@@ -74,15 +85,19 @@ public class SearchServiceImpl {
                         : Mono.error(new RuntimeException("Invalid profile ID")));
     }
 
-    private Mono<ElasSearchResponse> searchMoviesFallback(SearchRequest request, Throwable t) {
+    private Mono<ElasSearchResponse> searchMoviesFallback(SearchRequest request, Throwable t) throws IOException {
         logger.error("Circuit breaker fallback for searchMovies: query={}, userId={}, error={}",
                 request.getQuery(), request.getUserId(), t.getMessage());
         // Proceed without profile validation
         ElasSearchResponse response = elasticsearchSearchService.searchMovies(
-                request.getQuery(),
-
+                request.getQuery(),                    // keyword
+                request.getGenre(),                   // genre
+                request.getMinScore(),                // minScore
+                request.getMaxScore(),                // maxScore
                 request.getPage() != null ? request.getPage() : 0,
-                request.getSize() != null ? request.getSize() : 10
+                request.getSize() != null ? request.getSize() : 10,
+                request.getSortBy() != null ? request.getSortBy() : "score",
+                request.getAscending() != null ? request.getAscending() : false
         );
         return Mono.just(response);
     }
