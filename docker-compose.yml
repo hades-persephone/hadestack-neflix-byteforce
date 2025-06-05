@@ -233,6 +233,19 @@ services:
         limits:
           memory: 128M
 
+  kong-bootstrap:
+    image: kong:3.9-ubuntu
+    depends_on:
+      - kong-database
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_PASSWORD: kong
+      KONG_PG_USER: kong
+      KONG_PG_DATABASE: kong
+    command: kong migrations bootstrap
+    networks:
+      - kong-net
   # Kong API Gateway
   kong:
     image: kong:3.5
