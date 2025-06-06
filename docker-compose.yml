@@ -97,7 +97,7 @@ services:
     container_name: jaegertracing
     restart: always
     environment:
-      COLLECTOR_OTLP_ENABLED: true
+      COLLECTOR_OTLP_ENABLED: "true"
       MEMORY_MAX_TRACES: 10000
     ports:
       - "5775:5775/udp"
@@ -139,7 +139,8 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
       KAFKA_LOG_RETENTION_HOURS: 24
@@ -281,7 +282,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:22.0
     ports:
-      - "8080:8080"
+      - "8687:8080"
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
@@ -326,7 +327,7 @@ services:
     environment:
       - LS_JAVA_OPTS=-Xms256m -Xmx256m
     volumes:
-      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./monitoring/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
     ports:
       - "5044:5044"
       - "9600:9600"
@@ -342,7 +343,7 @@ services:
     volumes:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./monitoring/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
     networks:
       - monitoring
     depends_on:
@@ -356,7 +357,7 @@ services:
       - '--storage.tsdb.retention.time=7d'  # Chỉ giữ data 7 ngày
       - '--storage.tsdb.retention.size=500MB'  # Giới hạn storage
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - monitoring
     ports:
@@ -375,15 +376,15 @@ services:
     image: grafana/grafana:12.0.1
     container_name: grafana
     environment:
-      - GF_INSTALL_PLUGINS=""
+      - GF_INSTALL_PLUGINS="grafana-clock-panel,grafana-piechart-panel"
     ports:
       - "3000:3000"
     networks:
       - monitoring
     volumes:
       - grafana-storage:/var/lib/grafana
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasource:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
     depends_on:
       - prometheus
 

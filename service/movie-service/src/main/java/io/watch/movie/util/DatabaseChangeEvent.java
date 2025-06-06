@@ -10,8 +10,8 @@ import java.util.UUID;
 public class DatabaseChangeEvent implements Serializable {
     private String operation;
     private String tableName;
-    private JsonNode before;
-    private JsonNode after;
+    private transient JsonNode before;
+    private transient JsonNode after;
     private UUID entityId;
     private String timestamp;
 }
