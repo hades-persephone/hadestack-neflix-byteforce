@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   byteforce-primary-db:
     image: postgres:16
@@ -233,11 +231,18 @@ services:
       resources:
         limits:
           memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   kong-bootstrap:
     image: kong:3.9-ubuntu
     depends_on:
-      - kong-database
+      kong-database:
+        condition: service_healthy    
     environment:
       KONG_DATABASE: postgres
       KONG_PG_HOST: kong-database
@@ -265,8 +270,11 @@ services:
       KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
       KONG_MEM_CACHE_SIZE: 64m
       KONG_WORKER_PROCESSES: 2
+    networks:
+      - kong-net
     depends_on:
-      - kong-database
+      kong-bootstrap:
+        condition: service_completed_successfully   
     ports:
       - "8000:8000"
       - "8443:8443"
@@ -304,6 +312,8 @@ services:
         hard: -1
     volumes:
       - esdata:/usr/share/elasticsearch/data
+    networks:
+      - monitoring
     ports:
       - "9200:9200"
 
@@ -354,10 +364,12 @@ services:
     container_name: prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=7d'  # Chỉ giữ data 7 ngày
-      - '--storage.tsdb.retention.size=500MB'  # Giới hạn storage
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.size=500MB'
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
     networks:
       - monitoring
     ports:
@@ -376,7 +388,7 @@ services:
     image: grafana/grafana:12.0.1
     container_name: grafana
     environment:
-      - GF_INSTALL_PLUGINS="grafana-clock-panel,grafana-piechart-panel"
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
     ports:
       - "3000:3000"
     networks:
@@ -399,6 +411,7 @@ volumes:
   cassandra_data:
   esdata:
   grafana-storage:
+  prometheus-data:
 
 networks:
   kong-net:
