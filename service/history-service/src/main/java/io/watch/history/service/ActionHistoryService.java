@@ -5,6 +5,8 @@ import com.datastax.oss.driver.api.core.cql.BatchStatement;
 import com.datastax.oss.driver.api.core.cql.BatchStatementBuilder;
 import com.datastax.oss.driver.api.core.cql.DefaultBatchType;
 import com.datastax.oss.driver.api.core.cql.SimpleStatement;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.handler.timeout.WriteTimeoutException;
 import io.watch.history.dto.ActionRecord;
 import io.watch.history.entity.*;
@@ -18,6 +20,7 @@ import org.springframework.data.cassandra.core.CassandraTemplate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
@@ -27,10 +30,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -49,6 +49,9 @@ public class ActionHistoryService {
     private final CassandraTemplate cassandraTemplate;
     private final RetryTemplate retryTemplate;
     private final RedisTemplate<String, String> redisTemplate;
+    private final ObjectMapper objectMapper;
+    private final KafkaTemplate<String, ActionRecord> kafkaTemplate;
+
 
     @Value("${action-history.async-processing:true}")
     private boolean asyncProcessing;
@@ -120,13 +123,15 @@ public class ActionHistoryService {
         log.error("All retry attempts failed for user activity: {}, sending to DLQ",
                 activity.getId(), ex);
 
+        String operationId = UUID.randomUUID().toString();
         // Send to Dead Letter Queue hoặc alternative storage
-        failureHandler.handleFailedWrite(activity, ex);
+        failureHandler.handleFailedWrite(activity, null, ex, operationId);
         return CompletableFuture.completedFuture(null);
     }
 
     // Manual retry với RetryTemplate
     public void saveUserActivityManualRetry(ActionHistoryByAction activity) {
+        String operationId = UUID.randomUUID().toString();
         try {
             retryTemplate.execute(context -> {
                 log.debug("Retry attempt {} for activity: {}",
@@ -137,7 +142,7 @@ public class ActionHistoryService {
                 // Recovery callback
                 log.error("Manual retry failed after {} attempts for activity: {}",
                         context.getRetryCount(), activity.getId());
-                failureHandler.handleFailedWrite(activity, (Exception) context.getLastThrowable());
+                failureHandler.handleFailedWrite(activity, null, (Exception) context.getLastThrowable(), operationId);
                 return null;
             });
         } catch (Exception e) {
@@ -176,12 +181,13 @@ public class ActionHistoryService {
     public void recoverSaveBatchUserActivities(Exception ex, List<ActionHistoryByAction> activities) {
         log.error("Batch retry failed for {} activities", activities.size(), ex);
 
+        String operationId = UUID.randomUUID().toString();
         // Try individual saves as fallback
         activities.forEach(activity -> {
             try {
                 saveUserActivityWithRetry(activity);
             } catch (Exception e) {
-                failureHandler.handleFailedWrite(activity, e);
+                failureHandler.handleFailedWrite(activity, null, e ,operationId);
             }
         });
     }
@@ -213,12 +219,38 @@ public class ActionHistoryService {
      * @return List of action records
      */
     public List<ActionRecord> getActionHistoryForUser(String userId, int limit) {
+        String cacheKey = "user_history_" + userId + ":limit" + limit;
+        List<ActionRecord> cached = Objects.requireNonNull(redisTemplate.opsForList().range(cacheKey, 0, limit - 1))
+                .stream()
+                .map(json -> {
+                    try {
+                        return objectMapper.readValue(json, ActionRecord.class);
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException("Lỗi parse JSON", e);
+                    }
+                })
+                .toList();
+
+        if(cached.isEmpty()) {
+            log.debug("Cache hit for userId: {}, limit: {}", userId, limit);
+            return cached;
+        }
         Slice<ActionHistoryByUser> results = byUserRepository.findByUserId(
                 userId, PageRequest.of(0, limit));
-
-        return results.getContent().stream()
+        List<ActionRecord> records = results.getContent().stream()
                 .map(this::mapToActionRecord)
-                .collect(Collectors.toList());
+                .toList();
+        redisTemplate.opsForList().rightPushAll(cacheKey, records.stream()
+                .map(record -> {
+                    try {
+                        return objectMapper.writeValueAsString(record);
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .toList());
+        redisTemplate.expire(cacheKey, Duration.ofMinutes(30));
+        return records;
     }
 
     /**
@@ -288,7 +320,15 @@ public class ActionHistoryService {
                 actionRecord.getEntityType(),
                 actionRecord.getActionType(),
                 actionRecord.getYearMonth());
-
+        kafkaTemplate.send("user-action", actionRecord.getUserId(), actionRecord)
+                        .whenComplete((result, ex) -> {
+                            if(ex != null) {
+                                log.error("Failed to publish action to Kafka: {}", actionRecord.getUserId(), ex);
+                                failureHandler.handleFailedKafkaPublish(actionRecord, ex);
+                            } else {
+                                log.debug("Successfully published action to Kafka: {}", actionRecord.getUserId());
+                            }
+                        });
         log.debug("Saved action record: {}", actionRecord);
     }
 
@@ -430,5 +470,50 @@ public class ActionHistoryService {
                 .sourceIp(record.getSourceIp())
                 .userAgent(record.getUserAgent())
                 .build();
+    }
+
+    public CompletableFuture<Boolean> healthCheck() {
+        return CompletableFuture.supplyAsync(() -> {
+            return true;
+        });
+    }
+
+    public CompletableFuture<Void> saveUserHistory(ActionHistoryByUser userActivity) {
+        try {
+            log.debug("Attempting to save user activity: {}", userActivity.getUserId());
+            cassandraTemplate.insert(userActivity);
+            log.info("Successfully saved user activity: {}", userActivity.getUserId());
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("Failed to save user activity: {}, Error: {}",
+                    userActivity.getUserId(), e.getMessage());
+            throw e;
+        }
+    }
+
+    public CompletableFuture<Void> saveBatchHistory(List<ActionHistoryByAction> activities) {
+        try {
+            log.debug("Attempting to save user activity: {}", activities);
+            cassandraTemplate.insert(activities);
+            log.info("Successfully saved user activity: {}", activities);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("Failed to save user activity: {}, Error: {}",
+                    activities, e.getMessage());
+            throw e;
+        }
+    }
+
+    public CompletableFuture<Void> updateWatchProgress(WatchProgress progress) {
+        try {
+            log.debug("Attempting to save user activity: {}", progress);
+            cassandraTemplate.insert(progress);
+            log.info("Successfully saved user activity: {}", progress);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("Failed to save user activity: {}, Error: {}",
+                    progress, e.getMessage());
+            throw e;
+        }
     }
 }

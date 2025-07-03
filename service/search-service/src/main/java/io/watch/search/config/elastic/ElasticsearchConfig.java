@@ -1,9 +1,12 @@
 package io.watch.search.config.elastic;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
@@ -96,5 +99,9 @@ public class ElasticsearchConfig extends ElasticsearchConfiguration {
             logger.error("Failed to parse Elasticsearch URIs", e);
             throw new RuntimeException("Failed to parse Elasticsearch URIs", e);
         }
+    }
+    @Bean
+    public MeterRegistry meterRegistry() {
+        return new SimpleMeterRegistry();
     }
 }
