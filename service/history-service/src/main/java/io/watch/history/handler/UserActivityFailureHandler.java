@@ -35,10 +35,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -67,6 +64,8 @@ public class UserActivityFailureHandler implements HealthIndicator {
     private static final String CIRCUIT_BREAKER_METRICS_PREFIX = "cassandra.circuit.breaker";
     private static final String DLQ_TOPIC = "user-activity-dlq";
     private static final String RETRY_TOPIC = "user-activity-retry";
+    private static final String USER_DURATION = "user_activity_save_duration";
+    private static final String OPERATION = "operation";
 
     private final AtomicInteger activeRequests = new AtomicInteger(0);
     private final Map<String, AtomicInteger> operationCounters = new ConcurrentHashMap<>();
@@ -75,8 +74,8 @@ public class UserActivityFailureHandler implements HealthIndicator {
     private volatile boolean isHealthy = true;
 
     @Async("asyncExecutor")
-    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
-    public CompletableFuture<Void> saveActionHistoryWithResilience(ActionHistoryByAction actionHistoryByAction) {
+    @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
+    public CompletableFuture<Void> saveActionHistoryWithResilience(@Valid @NotNull ActionHistoryByAction actionHistoryByAction) {
         String operationId = UUID.randomUUID().toString();
         Timer.Sample timerSample = Timer.start(meterRegistry);
         return CompletableFuture.supplyAsync(() -> {
@@ -98,15 +97,16 @@ public class UserActivityFailureHandler implements HealthIndicator {
                 metrics.incrementCircuitBreakerFallbacks();
                 incrementOperationCounter("save_action_history_circuit_breaker");
                 return handleFallbackStorage(actionHistoryByAction, operationId);
-            } catch (Exception e) {
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 log.error("Faile to save action history: {}", actionHistoryByAction, e);
                 metrics.incrementFailedSaves();
                 incrementOperationCounter("save_action_history_failure");
+                Thread.currentThread().interrupt();
                 return handleFallbackStorage(actionHistoryByAction, operationId);
             } finally {
                 activeRequests.decrementAndGet();
-                timerSample.stop(Timer.builder("user_activity_save_duration")
-                        .tag("operation", "save_action_history")
+                timerSample.stop(Timer.builder(USER_DURATION)
+                        .tag(OPERATION, "save_action_history")
                         .register(meterRegistry));
             }
         }, asyncExecutor);
@@ -144,22 +144,23 @@ public class UserActivityFailureHandler implements HealthIndicator {
                 incrementOperationCounter("save_user_history_circuit_breaker");
                 return handleFallbackStorageHistoryByUser(userActivity, operationId);
 
-            } catch (Exception e) {
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 log.error("Failed to save user history: {}", userActivity.getUserId(), e);
                 metrics.incrementFailedSaves();
                 incrementOperationCounter("save_user_history_failure");
+                Thread.currentThread().interrupt();
                 return handleFallbackStorageHistoryByUser(userActivity, operationId);
             } finally {
                 activeRequests.decrementAndGet();
-                timerSample.stop(Timer.builder("user_activity_save_duration")
-                        .tag("operation", "save_user_history")
+                timerSample.stop(Timer.builder(USER_DURATION)
+                        .tag(OPERATION, "save_user_history")
                         .register(meterRegistry));
             }
         }, asyncExecutor);
     }
 
     @Async("asyncExecutor")
-    public CompletableFuture<Void> updateWatchProgressWithResilience(WatchProgress progress) {
+    public CompletableFuture<Void> updateWatchProgressWithResilience(@Valid @NotNull WatchProgress progress) {
         String operationId = UUID.randomUUID().toString();
         Timer.Sample timerSample = Timer.start(meterRegistry);
         return CompletableFuture.supplyAsync(() -> {
@@ -186,17 +187,18 @@ public class UserActivityFailureHandler implements HealthIndicator {
                 incrementOperationCounter("update_progress_circuit_breaker");
                 return handleProgressFallback(progress, operationId);
 
-            } catch (Exception e) {
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 log.error("Failed to update watch progress: {} operation: {}",
                         progress.getId(), operationId, e);
                 metrics.incrementFailedProgressUpdates();
                 incrementOperationCounter("update_progress_failure");
+                Thread.currentThread().interrupt();
                 return handleProgressFallback(progress, operationId);
 
             } finally {
                 activeRequests.decrementAndGet();
-                timerSample.stop(Timer.builder("user_activity_save_duration")
-                        .tag("operation", "update_progress")
+                timerSample.stop(Timer.builder(USER_DURATION)
+                        .tag(OPERATION, "update_progress")
                         .register(meterRegistry));
             }
         }, asyncExecutor);
@@ -243,17 +245,18 @@ public class UserActivityFailureHandler implements HealthIndicator {
                 incrementOperationCounter("save_batch_circuit_breaker");
                 return handleBatchFallback(activities, operationId);
 
-            } catch (Exception e) {
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 log.error("Failed to save batch history: {} items operation: {}",
                         activities.size(), operationId, e);
                 metrics.incrementFailedBatchSaves();
                 incrementOperationCounter("save_batch_failure");
+                Thread.currentThread().interrupt();
                 return handleBatchFallback(activities, operationId);
 
             } finally {
                 activeRequests.decrementAndGet();
-                timerSample.stop(Timer.builder("user_activity_save_duration")
-                        .tag("operation", "save_batch")
+                timerSample.stop(Timer.builder(USER_DURATION)
+                        .tag(OPERATION, "save_batch")
                         .register(meterRegistry));
             }
         }, asyncExecutor);
@@ -277,8 +280,9 @@ public class UserActivityFailureHandler implements HealthIndicator {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                     .get(resilienceProperties.getBatchTimeout().toMillis(), TimeUnit.MILLISECONDS);
             return null;
-        } catch (Exception e) {
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
             log.error("Failed to save chunked batch: {}", operationId, e);
+            Thread.currentThread().interrupt();
             return handleBatchFallback(activities, operationId);
         }
     }
@@ -458,13 +462,13 @@ public class UserActivityFailureHandler implements HealthIndicator {
             try {
                 return finalDecoratedSupplier.get().whenComplete((result, throwable) -> {
                     sample.stop(Timer.builder("resilience.operation.duration")
-                            .tag("operation", operationName)
+                            .tag(OPERATION, operationName)
                             .tag("success", throwable == null ? "true" : "false")
                             .register(meterRegistry));
                 });
             } catch (Exception e) {
                 sample.stop(Timer.builder("resilience.operation.duration")
-                        .tag("operation", operationName)
+                        .tag(OPERATION, operationName)
                         .tag("success", "false")
                         .register(meterRegistry));
                 throw e;
@@ -525,7 +529,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
 
     private void incrementOperationCounter(String operation) {
         operationCounters.computeIfAbsent(operation, k -> new AtomicInteger(0)).incrementAndGet();
-        meterRegistry.counter("user.activity.operations", "operation", operation).increment();
+        meterRegistry.counter("user.activity.operations", OPERATION, operation).increment();
     }
 
     public void handleFailedKafkaPublish(ActionRecord actionRecord, Throwable ex) {
