@@ -1,17 +1,20 @@
 package io.watch.movie.config.database;
 
-public class DataSourceContextHolder {
-    private static final ThreadLocal<DataSourceType> contextHolder = new ThreadLocal<>();
+import lombok.experimental.UtilityClass;
 
-    public static void set(DataSourceType type) {
+@UtilityClass
+public class DataSourceContextHolder {
+    private final ThreadLocal<DataSourceType> contextHolder = new ThreadLocal<>();
+
+    public void set(DataSourceType type) {
         contextHolder.set(type);
     }
 
-    public static DataSourceType get() {
+    public DataSourceType get() {
         return contextHolder.get();
     }
 
-    public static void clear() {
+    public void clear() {
         contextHolder.remove();
     }
 }

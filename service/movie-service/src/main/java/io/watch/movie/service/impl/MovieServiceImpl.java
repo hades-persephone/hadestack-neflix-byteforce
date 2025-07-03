@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -60,6 +61,8 @@ public class MovieServiceImpl implements MovieService {
     private final BaseNativeQueryExecutor query;
     private final ObjectMapper objectMapper;
     private final CustomCacheKeyGenerator keyGenerator;
+
+    private static final String MOVIE_NOT_FOUND = "Movie not found with ID: ";
 
     @Override
     @ReadOnly
@@ -104,6 +107,14 @@ public class MovieServiceImpl implements MovieService {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
+    private <T> DataResults<T> castToDataResults(Object obj) {
+        if (obj instanceof DataResults<?> dataResults) {
+            return (DataResults<T>) dataResults;
+        }
+        return null;
+    }
+
     @Override
     @Transactional
     @CacheEvict(value = "movies", allEntries = true)
@@ -127,7 +138,7 @@ public class MovieServiceImpl implements MovieService {
     @Cacheable(value = "movies", key = "#id")
     public MovieResponse getMovie(UUID id) {
         Movie movie = movieRepository.findById(id)
-                .orElseThrow(() -> new MovieNotFoundException("Movie not found with ID: " + id));
+                .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + id));
         return movieMapper.toResponse(movie);
     }
 
@@ -143,8 +154,9 @@ public class MovieServiceImpl implements MovieService {
     public MovieResponse updateMovie(UUID id, MovieRequest request) throws JsonProcessingException {
         validateMovieRequest(request);
 
-        Movie movie = movieRepository.findById(id)
-                .orElseThrow(() -> new MovieNotFoundException("Movie not found with ID: " + id));
+        movieRepository.findById(id)
+                .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + id));
+        Movie movie;
 
         movie = movieMapper.toEntity(request);
         movie.setCategories(fetchCategories(request.getCategoryIds()));
@@ -164,7 +176,7 @@ public class MovieServiceImpl implements MovieService {
     @CacheEvict(value = "movies", allEntries = true)
     public void deleteMovie(UUID id) {
         Movie movie = movieRepository.findById(id)
-                .orElseThrow(() -> new MovieNotFoundException("Movie not found with ID: " + id));
+                .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + id));
         movie.setDeletedAt(LocalDateTime.now());
         movie.setIsAvailable(false);
         movieRepository.save(movie);
@@ -187,7 +199,7 @@ public class MovieServiceImpl implements MovieService {
         return movieRepository.findByCategoriesId(categoryId).stream()
                 .filter(Movie::getIsAvailable)
                 .map(movieMapper::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -195,7 +207,7 @@ public class MovieServiceImpl implements MovieService {
     @CacheEvict(value = "movies", key = "#movieId")
     public void incrementViewCount(UUID movieId) {
         Movie movie = movieRepository.findById(movieId)
-                .orElseThrow(() -> new MovieNotFoundException("Movie not found with ID: " + movieId));
+                .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + movieId));
         movie.setViewCount(movie.getViewCount() + 1);
         movieRepository.save(movie);
 
@@ -204,18 +216,13 @@ public class MovieServiceImpl implements MovieService {
 
     @Override
     public byte[] exportMoviesTemplate(HttpServletRequest req) {
-        byte[] result = null;
-        try {
-            InputStream is = new ClassPathResource("/templates/export_template_import_movies.xlsx").getInputStream();
-            ByteArrayOutputStream byteArr = new ByteArrayOutputStream();
-            Workbook rsWorkbook = WorkbookFactory.create(is);
+        try (InputStream is = new ClassPathResource("/templates/export_template_import_movies.xlsx").getInputStream();
+             ByteArrayOutputStream byteArr = new ByteArrayOutputStream();
+             Workbook rsWorkbook = WorkbookFactory.create(is)) {
             rsWorkbook.write(byteArr);
-            result = byteArr.toByteArray();
-            byteArr.close();
-            is.close();
-            return result;
-        } catch (Exception e) {
-            throw new RuntimeException("Export movies template failed", e);
+            return byteArr.toByteArray();
+        } catch (IOException e) {
+            throw new MovieNotFoundException("Export movies template failed", e);
         }
     }
 
