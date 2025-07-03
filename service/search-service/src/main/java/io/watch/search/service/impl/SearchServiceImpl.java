@@ -1,6 +1,7 @@
 package io.watch.search.service.impl;
 
 
+import io.watch.search.model.dto.AdvancedSearchRequest;
 import io.watch.search.model.dto.SearchRequest;
 import io.watch.search.model.dto.ElasSearchResponse;
 import io.watch.search.model.entity.Profile;
@@ -31,33 +32,24 @@ public class SearchServiceImpl {
     private final RedisTemplate<String, String> redisTemplate;
 
     @CircuitBreaker(name = "userService", fallbackMethod = "searchMoviesFallback")
-    public Mono<ElasSearchResponse> searchMovies(SearchRequest request) {
+    public Mono<ElasSearchResponse> searchMovies(AdvancedSearchRequest searchRequest) {
         // Validate profile if provided
-        Mono<Void> profileValidation = request.getUserId() != null && request.getProfileId() != null
-                ? validateProfile(request.getUserId(), request.getProfileId())
+        Mono<Void> profileValidation = searchRequest.getUserId() != null && searchRequest.getProfileId() != null
+                ? validateProfile(searchRequest.getUserId(), searchRequest.getProfileId())
                 : Mono.empty();
 
         return profileValidation.then(Mono.defer(() -> {
             // Perform Elasticsearch search
             ElasSearchResponse response = null;
             try {
-                response = elasticsearchSearchService.searchMovies(
-                        request.getQuery(),                    // keyword
-                        request.getGenre(),                   // genre
-                        request.getMinScore(),                // minScore
-                        request.getMaxScore(),                // maxScore
-                        request.getPage() != null ? request.getPage() : 0,
-                        request.getSize() != null ? request.getSize() : 10,
-                        request.getSortBy() != null ? request.getSortBy() : "score",
-                        request.getAscending() != null ? request.getAscending() : false
-                );
+                response = elasticsearchSearchService.advancedSearchMovies(searchRequest);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
 
             // Personalize results if userId and profileId are provided
-            if (request.getUserId() != null && request.getProfileId() != null) {
-                String preferenceKey = RedisKeyUtil.getPreferenceKey(request.getUserId(), request.getProfileId());
+            if (searchRequest.getUserId() != null && searchRequest.getProfileId() != null) {
+                String preferenceKey = RedisKeyUtil.getPreferenceKey(searchRequest.getUserId(), searchRequest.getProfileId());
                 Set<String> preferredMovieIds = redisTemplate.opsForSet().members(preferenceKey);
                 if (preferredMovieIds != null) {
                     response.getResults().forEach(result -> {
@@ -69,7 +61,7 @@ public class SearchServiceImpl {
             }
 
             logger.info("Processed search query: query={}, userId={}, profileId={}",
-                    request.getQuery(), request.getUserId(), request.getProfileId());
+                    searchRequest.getKeyword(), searchRequest.getUserId(), searchRequest.getProfileId());
             return Mono.just(response);
         }));
     }
@@ -85,20 +77,11 @@ public class SearchServiceImpl {
                         : Mono.error(new RuntimeException("Invalid profile ID")));
     }
 
-    private Mono<ElasSearchResponse> searchMoviesFallback(SearchRequest request, Throwable t) throws IOException {
+    private Mono<ElasSearchResponse> searchMoviesFallback(AdvancedSearchRequest searchRequest) throws IOException {
         logger.error("Circuit breaker fallback for searchMovies: query={}, userId={}, error={}",
-                request.getQuery(), request.getUserId(), t.getMessage());
+                searchRequest.getKeyword(), searchRequest.getUserId(), searchRequest.getLanguageAnalyzer());
         // Proceed without profile validation
-        ElasSearchResponse response = elasticsearchSearchService.searchMovies(
-                request.getQuery(),                    // keyword
-                request.getGenre(),                   // genre
-                request.getMinScore(),                // minScore
-                request.getMaxScore(),                // maxScore
-                request.getPage() != null ? request.getPage() : 0,
-                request.getSize() != null ? request.getSize() : 10,
-                request.getSortBy() != null ? request.getSortBy() : "score",
-                request.getAscending() != null ? request.getAscending() : false
-        );
+        ElasSearchResponse response = elasticsearchSearchService.advancedSearchMovies(searchRequest);
         return Mono.just(response);
     }
 }
