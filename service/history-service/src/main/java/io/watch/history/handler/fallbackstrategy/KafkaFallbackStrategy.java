@@ -1,10 +1,8 @@
 package io.watch.history.handler.fallbackstrategy;
 
-import com.datastax.oss.protocol.internal.request.Batch;
 import io.watch.history.dto.BatchMetadata;
 import io.watch.history.entity.ActionHistoryByAction;
 import io.watch.history.entity.ActionHistoryByUser;
-import io.watch.history.entity.UserLoginKey;
 import io.watch.history.entity.WatchProgress;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -99,9 +97,7 @@ public class KafkaFallbackStrategy implements FallbackStorageStrategy {
             BatchMetadata batch = BatchMetadata.builder()
                     .batchId(System.currentTimeMillis())
                     .size(activities.size())
-                    .userIds(activities.stream().map(item -> {
-                        return String.valueOf(item.getKey().getUserId());
-                    }).distinct().toList())
+                    .userIds(activities.stream().map(item -> String.valueOf(item.getKey().getUserId())).distinct().toList())
                     .timestamp(System.currentTimeMillis())
                     .build();
 
