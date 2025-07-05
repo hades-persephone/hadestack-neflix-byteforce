@@ -5,12 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.cassandra.core.cql.PrimaryKeyType;
 import org.springframework.data.cassandra.core.mapping.Column;
-import org.springframework.data.cassandra.core.mapping.PrimaryKeyColumn;
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
 import org.springframework.data.cassandra.core.mapping.Table;
 
-import java.time.Instant;
 import java.util.Map;
 
 @Data
@@ -19,20 +17,15 @@ import java.util.Map;
 @Builder
 @Table("action_history_by_action")
 public class ActionHistoryByAction {
-    @PrimaryKeyColumn(name = "action_type", ordinal = 0, type = PrimaryKeyType.PARTITIONED)
-    private String actionType;
 
-    @PrimaryKeyColumn(name = "action_timestamp", ordinal = 1, type = PrimaryKeyType.CLUSTERED)
-    private Instant actionTimestamp;
+    @PrimaryKey
+    private UserLoginKey key;
 
     @Column("entity_type")
     private String entityType;
 
     @Column("entity_id")
     private String entityId;
-
-    @Column("user_id")
-    private String userId;
 
     @Column("details")
     private Map<String, String> details;
@@ -44,16 +37,14 @@ public class ActionHistoryByAction {
     private String userAgent;
 
     public String getId() {
-        return userId + "_" + actionTimestamp;
+        return key.getUserId() + key.getActionTimestamp().toString();
     }
 
     public static ActionHistoryByAction fromActionRecord(ActionRecord record) {
         return ActionHistoryByAction.builder()
-                .actionType(record.getActionType())
-                .actionTimestamp(record.getActionTimestamp())
+                .key(record.getKey())
                 .entityType(record.getEntityType())
                 .entityId(record.getEntityId())
-                .userId(record.getUserId())
                 .details(record.getDetails())
                 .sourceIp(record.getSourceIp())
                 .userAgent(record.getUserAgent())

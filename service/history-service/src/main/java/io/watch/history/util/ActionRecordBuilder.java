@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Utility class for building ActionRecord objects
@@ -18,7 +19,7 @@ public class ActionRecordBuilder {
     private String entityType;
     private String entityId;
     private String actionType;
-    private String userId;
+    private UUID userId;
     private Map<String, String> details = new HashMap<>();
     private String sourceIp;
     private String userAgent;
@@ -52,7 +53,7 @@ public class ActionRecordBuilder {
     /**
      * Set user ID
      */
-    public ActionRecordBuilder user(String userId) {
+    public ActionRecordBuilder user(UUID userId) {
         this.userId = userId;
         return this;
     }

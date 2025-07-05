@@ -5,13 +5,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.cassandra.core.cql.Ordering;
 import org.springframework.data.cassandra.core.cql.PrimaryKeyType;
 import org.springframework.data.cassandra.core.mapping.Column;
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
 import org.springframework.data.cassandra.core.mapping.PrimaryKeyColumn;
 import org.springframework.data.cassandra.core.mapping.Table;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -19,20 +22,21 @@ import java.util.Map;
 @Builder
 @Table("action_history_by_entity")
 public class ActionHistoryByEntity {
-    @PrimaryKeyColumn(name = "entity_type", ordinal = 0, type = PrimaryKeyType.PARTITIONED)
-    private String entityType;
 
-    @PrimaryKeyColumn(name = "entity_id", ordinal = 1, type = PrimaryKeyType.PARTITIONED)
-    private String entityId;
+    @PrimaryKeyColumn(name = "user_id", ordinal = 0, type = PrimaryKeyType.PARTITIONED)
+    private UUID userId;
 
-    @PrimaryKeyColumn(name = "action_timestamp", ordinal = 2, type = PrimaryKeyType.CLUSTERED)
-    private Instant actionTimestamp;
-
-    @Column("action_type")
+    @PrimaryKeyColumn(name = "action_type", ordinal = 1, type = PrimaryKeyType.PARTITIONED)
     private String actionType;
 
-    @Column("user_id")
-    private String userId;
+    @PrimaryKeyColumn(name = "action_timestamp", ordinal = 2, type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING)
+    private Instant actionTimestamp;
+
+    @PrimaryKeyColumn(name = "entity_type", ordinal = 3, type = PrimaryKeyType.PARTITIONED)
+    private String entityType;
+
+    @PrimaryKeyColumn(name = "entity_id", ordinal = 4, type = PrimaryKeyType.PARTITIONED)
+    private String entityId;
 
     @Column("details")
     private Map<String, String> details;
@@ -45,11 +49,11 @@ public class ActionHistoryByEntity {
 
     public static ActionHistoryByEntity fromActionRecord(ActionRecord record) {
         return ActionHistoryByEntity.builder()
+                .userId(record.getUserId())
+                .actionType(record.getActionType())
+                .actionTimestamp(record.getActionTimestamp())
                 .entityType(record.getEntityType())
                 .entityId(record.getEntityId())
-                .actionTimestamp(record.getActionTimestamp())
-                .actionType(record.getActionType())
-                .userId(record.getUserId())
                 .details(record.getDetails())
                 .sourceIp(record.getSourceIp())
                 .userAgent(record.getUserAgent())

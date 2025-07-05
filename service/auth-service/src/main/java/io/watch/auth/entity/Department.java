@@ -29,8 +29,15 @@ public class Department {
     @JoinColumn(name = "manager_id", referencedColumnName = "id")
     private User manager;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", referencedColumnName = "id")
+    private Organization organization;
+
     @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
     private Set<User> users = new HashSet<>();
+
+    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
+    private Set<Position> positions = new HashSet<>();
 
     @Column(name = "created_at")
     @CreationTimestamp

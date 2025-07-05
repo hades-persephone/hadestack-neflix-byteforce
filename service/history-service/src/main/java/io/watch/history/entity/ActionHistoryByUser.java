@@ -5,12 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.cassandra.core.cql.PrimaryKeyType;
 import org.springframework.data.cassandra.core.mapping.Column;
-import org.springframework.data.cassandra.core.mapping.PrimaryKeyColumn;
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
 import org.springframework.data.cassandra.core.mapping.Table;
 
-import java.time.Instant;
 import java.util.Map;
 
 @Data
@@ -19,20 +17,15 @@ import java.util.Map;
 @Builder
 @Table("action_history_by_user")
 public class ActionHistoryByUser {
-    @PrimaryKeyColumn(name = "user_id", ordinal = 0, type = PrimaryKeyType.PARTITIONED)
-    private String userId;
 
-    @PrimaryKeyColumn(name = "action_timestamp", ordinal = 1, type = PrimaryKeyType.CLUSTERED)
-    private Instant actionTimestamp;
+    @PrimaryKey
+    private UserLoginKey key;
 
     @Column("entity_type")
     private String entityType;
 
     @Column("entity_id")
     private String entityId;
-
-    @Column("action_type")
-    private String actionType;
 
     @Column("device_type")
     private String deviceType;
@@ -51,11 +44,9 @@ public class ActionHistoryByUser {
 
     public static ActionHistoryByUser fromActionRecord(ActionRecord record) {
         return ActionHistoryByUser.builder()
-                .userId(record.getUserId())
-                .actionTimestamp(record.getActionTimestamp())
+                .key(record.getKey())
                 .entityType(record.getEntityType())
                 .entityId(record.getEntityId())
-                .actionType(record.getActionType())
                 .details(record.getDetails())
                 .deviceType(record.getDeviceType())
                 .country(record.getCountry())

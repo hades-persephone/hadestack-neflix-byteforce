@@ -13,10 +13,10 @@ import java.util.List;
 @Repository
 public interface ActionHistoryByActionRepository extends CassandraRepository<ActionHistoryByAction, Object> {
 
-    Slice<ActionHistoryByAction> findByActionType(String actionType, Pageable pageable);
+    Slice<ActionHistoryByAction> findByKeyActionType(String actionType, Pageable pageable);
 
-    @Query("SELECT * FROM action_history_by_action WHERE action_type = ?0 "
-            + "AND action_timestamp > ?1 AND action_timestamp < ?2 ALLOW FILTERING")
-    List<ActionHistoryByAction> findByActionTypeAndActionTimestampBetween(
-            String actionType, Instant startDate, Instant endDate);
+    @Query("SELECT * FROM action_history_by_action " +
+            "WHERE action_type = ?0 AND login_time > ?1 AND login_time < ?2 ALLOW FILTERING")
+    List<ActionHistoryByAction> findByKeyActionTypeAndKeyLoginTimeBetween(String actionType, Instant start, Instant end);
+
 }

@@ -51,6 +51,7 @@ public class ActionHistoryService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, ActionRecord> kafkaTemplate;
+    private final CassandraPersistenceService cassandraPersistenceService;
 
 
     @Value("${action-history.async-processing:true}")
@@ -106,16 +107,7 @@ public class ActionHistoryService {
     )
     @Async
     public CompletableFuture<Void> saveUserActivityWithRetry(ActionHistoryByAction activity) {
-        try {
-            log.debug("Attempting to save user activity: {}", activity.getId());
-            cassandraTemplate.insert(activity);
-            log.info("Successfully saved user activity: {}", activity.getId());
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception e) {
-            log.error("Failed to save user activity: {}, Error: {}",
-                    activity.getId(), e.getMessage());
-            throw e;
-        }
+        return cassandraPersistenceService.saveActionHistory(activity);
     }
 
     @Recover
@@ -165,8 +157,8 @@ public class ActionHistoryService {
                                     "VALUES (?, ?, ?, ?, ?, ?)"
                     )
                     .addPositionalValues(
-                            activity.getUserId(),
-                            activity.getActionTimestamp()
+                            activity.getKey().getUserId(),
+                            activity.getKey().getActionTimestamp()
                     )
                     .build();
 
@@ -218,7 +210,7 @@ public class ActionHistoryService {
      * @param limit  Maximum number of records to return
      * @return List of action records
      */
-    public List<ActionRecord> getActionHistoryForUser(String userId, int limit) {
+    public List<ActionRecord> getActionHistoryForUser(UUID userId, int limit) {
         String cacheKey = "user_history_" + userId + ":limit" + limit;
         List<ActionRecord> cached = Objects.requireNonNull(redisTemplate.opsForList().range(cacheKey, 0, limit - 1))
                 .stream()
@@ -235,7 +227,7 @@ public class ActionHistoryService {
             log.debug("Cache hit for userId: {}, limit: {}", userId, limit);
             return cached;
         }
-        Slice<ActionHistoryByUser> results = byUserRepository.findByUserId(
+        Slice<ActionHistoryByUser> results = byUserRepository.findByKeyUserId(
                 userId, PageRequest.of(0, limit));
         List<ActionRecord> records = results.getContent().stream()
                 .map(this::mapToActionRecord)
@@ -261,7 +253,7 @@ public class ActionHistoryService {
      * @return List of action records
      */
     public List<ActionRecord> getActionHistoryByType(String actionType, int limit) {
-        Slice<ActionHistoryByAction> results = byActionRepository.findByActionType(
+        Slice<ActionHistoryByAction> results = byActionRepository.findByKeyActionType(
                 actionType, PageRequest.of(0, limit));
 
         return results.getContent().stream()
@@ -320,7 +312,7 @@ public class ActionHistoryService {
                 actionRecord.getEntityType(),
                 actionRecord.getActionType(),
                 actionRecord.getYearMonth());
-        kafkaTemplate.send("user-action", actionRecord.getUserId(), actionRecord)
+        kafkaTemplate.send("user-action", String.valueOf(actionRecord.getKey().getUserId()), actionRecord)
                         .whenComplete((result, ex) -> {
                             if(ex != null) {
                                 log.error("Failed to publish action to Kafka: {}", actionRecord.getUserId(), ex);
@@ -437,9 +429,9 @@ public class ActionHistoryService {
         return ActionRecord.builder()
                 .entityType(record.getEntityType())
                 .entityId(record.getEntityId())
-                .actionTimestamp(record.getActionTimestamp())
-                .actionType(record.getActionType())
-                .userId(record.getUserId())
+                .actionTimestamp(record.getKey().getActionTimestamp())
+                .actionType(record.getKey().getActionType())
+                .userId(record.getKey().getUserId())
                 .details(record.getDetails())
                 .sourceIp(record.getSourceIp())
                 .userAgent(record.getUserAgent())
@@ -450,9 +442,9 @@ public class ActionHistoryService {
         return ActionRecord.builder()
                 .entityType(record.getEntityType())
                 .entityId(record.getEntityId())
-                .actionTimestamp(record.getActionTimestamp())
-                .actionType(record.getActionType())
-                .userId(record.getUserId())
+                .actionTimestamp(record.getKey().getActionTimestamp())
+                .actionType(record.getKey().getActionType())
+                .userId(record.getKey().getUserId())
                 .details(record.getDetails())
                 .sourceIp(record.getSourceIp())
                 .userAgent(record.getUserAgent())
@@ -473,47 +465,18 @@ public class ActionHistoryService {
     }
 
     public CompletableFuture<Boolean> healthCheck() {
-        return CompletableFuture.supplyAsync(() -> {
-            return true;
-        });
+        return cassandraPersistenceService.healthCheck();
     }
 
     public CompletableFuture<Void> saveUserHistory(ActionHistoryByUser userActivity) {
-        try {
-            log.debug("Attempting to save user activity: {}", userActivity.getUserId());
-            cassandraTemplate.insert(userActivity);
-            log.info("Successfully saved user activity: {}", userActivity.getUserId());
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception e) {
-            log.error("Failed to save user activity: {}, Error: {}",
-                    userActivity.getUserId(), e.getMessage());
-            throw e;
-        }
+        return cassandraPersistenceService.saveUserHistory(userActivity);
     }
 
     public CompletableFuture<Void> saveBatchHistory(List<ActionHistoryByAction> activities) {
-        try {
-            log.debug("Attempting to save user activity: {}", activities);
-            cassandraTemplate.insert(activities);
-            log.info("Successfully saved user activity: {}", activities);
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception e) {
-            log.error("Failed to save user activity: {}, Error: {}",
-                    activities, e.getMessage());
-            throw e;
-        }
+        return cassandraPersistenceService.saveBatchHistory(activities);
     }
 
     public CompletableFuture<Void> updateWatchProgress(WatchProgress progress) {
-        try {
-            log.debug("Attempting to save user activity: {}", progress);
-            cassandraTemplate.insert(progress);
-            log.info("Successfully saved user activity: {}", progress);
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception e) {
-            log.error("Failed to save user activity: {}, Error: {}",
-                    progress, e.getMessage());
-            throw e;
-        }
+        return cassandraPersistenceService.updateWatchProgress(progress);
     }
 }

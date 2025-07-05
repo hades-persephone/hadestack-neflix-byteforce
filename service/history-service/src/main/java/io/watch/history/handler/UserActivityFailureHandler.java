@@ -13,7 +13,8 @@ import io.watch.history.dto.FailedActivityRecord;
 import io.watch.history.entity.ActionHistoryByAction;
 import io.watch.history.entity.ActionHistoryByUser;
 import io.watch.history.entity.WatchProgress;
-import io.watch.history.service.ActionHistoryService;
+import io.watch.history.handler.fallbackstrategy.FallbackStorageStrategy;
+import io.watch.history.service.CassandraPersistenceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +56,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
     private final ResilienceProperties resilienceProperties;
     private final MeterRegistry meterRegistry;
 
-    private final ActionHistoryService actionHistoryService;
+    private final CassandraPersistenceService cassandraPersistenceService;
     private final List<FallbackStorageStrategy> fallbackStrategies;
     private final WatchHistoryMetrics metrics;
 
@@ -83,8 +84,8 @@ public class UserActivityFailureHandler implements HealthIndicator {
             incrementOperationCounter("save_action_history_attempts");
             try {
                 log.debug("Starting saveActionHistory operation: {} for user: {}",
-                        operationId, actionHistoryByAction.getUserId());
-                Supplier<CompletableFuture<Void>> decoratedSupplier = decorateWithAllPatterns(() -> actionHistoryService.saveUserActivityWithRetry(actionHistoryByAction), "saveActionHistory");
+                        operationId, actionHistoryByAction.getKey().getUserId());
+                Supplier<CompletableFuture<Void>> decoratedSupplier = decorateWithAllPatterns(() -> cassandraPersistenceService.saveActionHistory(actionHistoryByAction), "saveActionHistory");
 
                 decoratedSupplier.get().get(Duration.ofSeconds(5).toMillis(), TimeUnit.MILLISECONDS);
 
@@ -123,10 +124,10 @@ public class UserActivityFailureHandler implements HealthIndicator {
             incrementOperationCounter("save_user_history_attempts");
             try {
                 log.debug("Starting saveUserHistory operation: {} for user: {}",
-                        operationId, userActivity.getUserId());
+                        operationId, userActivity.getKey().getUserId());
 
                 Supplier<CompletableFuture<Void>> decoratedSupplier = decorateWithAllPatterns(
-                        () -> actionHistoryService.saveUserHistory(userActivity),
+                        () -> cassandraPersistenceService.saveUserHistory(userActivity),
                         "saveUserHistory"
                 );
 
@@ -139,13 +140,13 @@ public class UserActivityFailureHandler implements HealthIndicator {
                 return null;
 
             } catch (CallNotPermittedException e) {
-                log.warn("Circuit breaker OPEN - using fallback storage for user: {}", userActivity.getUserId());
+                log.warn("Circuit breaker OPEN - using fallback storage for user: {}", userActivity.getKey().getUserId());
                 metrics.incrementCircuitBreakerFallbacks();
                 incrementOperationCounter("save_user_history_circuit_breaker");
                 return handleFallbackStorageHistoryByUser(userActivity, operationId);
 
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                log.error("Failed to save user history: {}", userActivity.getUserId(), e);
+                log.error("Failed to save user history: {}", userActivity.getKey().getUserId(), e);
                 metrics.incrementFailedSaves();
                 incrementOperationCounter("save_user_history_failure");
                 Thread.currentThread().interrupt();
@@ -169,7 +170,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
             try {
                 // Real-time progress updates are critical, use shorter timeout
                 Supplier<CompletableFuture<Void>> decoratedSupplier =
-                        decorateWithAllPatterns(() -> actionHistoryService.updateWatchProgress(progress),
+                        decorateWithAllPatterns(() -> cassandraPersistenceService.updateWatchProgress(progress),
                                 "updateWatchProgress");
 
                 decoratedSupplier.get().get(Duration.ofSeconds(2).toMillis(),
@@ -182,14 +183,14 @@ public class UserActivityFailureHandler implements HealthIndicator {
 
             } catch (CallNotPermittedException e) {
                 log.warn("Circuit breaker OPEN - caching progress update: {} operation: {}",
-                        progress.getId(), operationId);
+                        progress.getProgressId(), operationId);
                 metrics.incrementProgressUpdateFallbacks();
                 incrementOperationCounter("update_progress_circuit_breaker");
                 return handleProgressFallback(progress, operationId);
 
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 log.error("Failed to update watch progress: {} operation: {}",
-                        progress.getId(), operationId, e);
+                        progress.getProgressId(), operationId, e);
                 metrics.incrementFailedProgressUpdates();
                 incrementOperationCounter("update_progress_failure");
                 Thread.currentThread().interrupt();
@@ -227,7 +228,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
                     return handleLargeBatch(activities, operationId);
                 }
                 Supplier<CompletableFuture<Void>> decoratedSupplier =
-                        decorateWithAllPatterns(() -> actionHistoryService.saveBatchHistory(activities),
+                        decorateWithAllPatterns(() -> cassandraPersistenceService.saveBatchHistory(activities),
                                 "saveBatchHistory");
 
                 decoratedSupplier.get().get(Duration.ofSeconds(10).toMillis(),
@@ -345,24 +346,44 @@ public class UserActivityFailureHandler implements HealthIndicator {
                 log.warn("Fallback strategy {} failed", strategy.getClass().getSimpleName(), e);
             }
         }
-        log.error("All fallback strategies failed for user: {}", userActivity.getUserId());
+        log.error("All fallback strategies failed for user: {}", userActivity.getKey().getUserId());
         return null;
     }
 
     private Void handleProgressFallback(WatchProgress progress, String operationId) {
-        try {
-            // For progress updates, use the fastest fallback strategy
-            FallbackStorageStrategy fastestStrategy = fallbackStrategies.stream()
-                    .min(Comparator.comparingInt(FallbackStorageStrategy::getPriority))
-                    .orElse(fallbackStrategies.get(0));
+        // For progress updates, use the fastest fallback strategy
+        FallbackStorageStrategy fastestStrategy = fallbackStrategies.stream()
+                .min(Comparator.comparingInt(FallbackStorageStrategy::getPriority))
+                .orElse(fallbackStrategies.get(0));
 
+        try {
             fastestStrategy.storeWatchProgress(progress);
             log.info("Stored progress in fallback using: {} for operation: {}",
                     fastestStrategy.getClass().getSimpleName(), operationId);
             metrics.incrementFallbackSuccess(fastestStrategy.getClass().getSimpleName());
-
             return null;
         } catch (Exception e) {
+            log.warn("Fastest fallback strategy {} failed for progress operation: {} - {}",
+                    fastestStrategy.getStrategyName(), operationId, e.getMessage());
+            metrics.incrementFallbackFailure(fastestStrategy.getStrategyName());
+
+            // Try other strategies
+            for (FallbackStorageStrategy strategy : fallbackStrategies) {
+                if (strategy == fastestStrategy) continue; // Skip already tried strategy
+
+                try {
+                    strategy.storeWatchProgress(progress);
+                    log.info("Stored progress in fallback using strategy: {} for operation: {}",
+                            strategy.getStrategyName(), operationId);
+                    metrics.incrementFallbackSuccess(strategy.getStrategyName());
+                    return null;
+                } catch (Exception ex) {
+                    log.warn("Fallback strategy {} failed for progress operation: {} - {}",
+                            strategy.getStrategyName(), operationId, ex.getMessage());
+                    metrics.incrementFallbackFailure(strategy.getStrategyName());
+                }
+            }
+
             log.error("Failed to store progress in fallback for operation: {}", operationId, e);
             handleFailedProgressWrite(progress, e, operationId);
             return null;
@@ -380,18 +401,18 @@ public class UserActivityFailureHandler implements HealthIndicator {
                     .build();
 
             kafkaTemplate.send(DLQ_TOPIC, String.valueOf(progress.getUserId()), failedRecord);
-            log.info("Sent failed progress to DLQ: {} operation: {}", progress.getId(), operationId);
+            log.info("Sent failed progress to DLQ: {} operation: {}", progress.getProgressId(), operationId);
 
         } catch (Exception e) {
             log.error("Failed to handle progress write failure: {} operation: {}",
-                    progress.getId(), operationId, e);
+                    progress.getProgressId(), operationId, e);
             logFailedProgress(progress, exception, operationId);
         }
     }
 
     private void logFailedUserActivity(ActionHistoryByUser userActivity, Exception exception, String operationId) {
         log.error("FAILED_USER_ACTIVITY|{}|{}|{}",
-                userActivity.getUserId(),
+                userActivity.getKey().getUserId(),
                 operationId,
                 exception.getMessage());
     }
@@ -399,7 +420,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
     private void logFailedProgress(WatchProgress progress, Exception exception, String operationId) {
         log.error("FAILED_PROGRESS|{}|{}|{}|{}",
                 progress.getUserId(),
-                progress.getId(),
+                progress.getProgressId(),
                 operationId,
                 exception.getMessage());
     }
@@ -438,7 +459,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
         if (cassandraCircuitBreaker.getState() == CircuitBreaker.State.HALF_OPEN) {
             try {
                 // Test with a simple health check query
-                actionHistoryService.healthCheck().get(Duration.ofSeconds(2).toMillis(),
+                cassandraPersistenceService.healthCheck().get(Duration.ofSeconds(2).toMillis(),
                         java.util.concurrent.TimeUnit.MILLISECONDS);
                 log.info("Cassandra health check passed, circuit breaker should close");
             } catch (Exception e) {
@@ -489,7 +510,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
                     .build();
 
             // Send to DLQ topic
-            CompletableFuture<SendResult<String, FailedActivityRecord>> future = kafkaTemplate.send(DLQ_TOPIC, activity.getUserId(), failedRecord);
+            CompletableFuture<SendResult<String, FailedActivityRecord>> future = kafkaTemplate.send(DLQ_TOPIC, String.valueOf(activity.getKey().getUserId()), failedRecord);
             future.whenComplete((result, ex) -> {
                 if (ex == null) {
                     log.info("Sent failed activity to DLQ: {} operation: {}", activity.getId(), operationId);
@@ -523,7 +544,7 @@ public class UserActivityFailureHandler implements HealthIndicator {
     private void logFailedActivity(ActionHistoryByAction activity, Exception exception, String operationId) {
         // Log structured data cho easy parsing
         log.error("FAILED_ACTIVITY|{}|{}",
-                activity.getUserId(),
+                activity.getKey().getUserId(),
                 exception.getMessage());
     }
 
@@ -549,6 +570,9 @@ public class UserActivityFailureHandler implements HealthIndicator {
                     .withDetail("active.requests", activeRequests.get())
                     .withDetail("last.health.check", lastHealthCheck.toString())
                     .withDetail("fallback.strategies.count", fallbackStrategies.size())
+                    .withDetail("fallback.strategies", fallbackStrategies.stream()
+                            .map(FallbackStorageStrategy::getStrategyName)
+                            .collect(Collectors.toList()))
                     .withDetail("operation.counters", operationCounters)
                     .build();
 

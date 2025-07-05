@@ -5,13 +5,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.cassandra.core.cql.Ordering;
 import org.springframework.data.cassandra.core.cql.PrimaryKeyType;
 import org.springframework.data.cassandra.core.mapping.Column;
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
 import org.springframework.data.cassandra.core.mapping.PrimaryKeyColumn;
 import org.springframework.data.cassandra.core.mapping.Table;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -19,23 +22,24 @@ import java.util.Map;
 @Builder
 @Table("action_history_by_time")
 public class ActionHistoryByTime {
-    @PrimaryKeyColumn(name = "year_month", ordinal = 0, type = PrimaryKeyType.PARTITIONED)
-    private String yearMonth;
 
-    @PrimaryKeyColumn(name = "action_timestamp", ordinal = 1, type = PrimaryKeyType.CLUSTERED)
+    @PrimaryKeyColumn(name = "user_id", ordinal = 0, type = PrimaryKeyType.PARTITIONED)
+    private UUID userId;
+
+    @PrimaryKeyColumn(name = "action_type", ordinal = 1, type = PrimaryKeyType.PARTITIONED)
+    private String actionType;
+
+    @PrimaryKeyColumn(name = "action_timestamp", ordinal = 2, type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING)
     private Instant actionTimestamp;
+
+    @PrimaryKeyColumn(name = "year_month", ordinal = 3, type = PrimaryKeyType.PARTITIONED)
+    private String yearMonth;
 
     @Column("entity_type")
     private String entityType;
 
     @Column("entity_id")
     private String entityId;
-
-    @Column("action_type")
-    private String actionType;
-
-    @Column("user_id")
-    private String userId;
 
     @Column("details")
     private Map<String, String> details;
@@ -49,11 +53,11 @@ public class ActionHistoryByTime {
     public static ActionHistoryByTime fromActionRecord(ActionRecord record) {
         return ActionHistoryByTime.builder()
                 .yearMonth(record.getYearMonth())
+                .userId(record.getUserId())
+                .actionType(record.getActionType())
                 .actionTimestamp(record.getActionTimestamp())
                 .entityType(record.getEntityType())
                 .entityId(record.getEntityId())
-                .actionType(record.getActionType())
-                .userId(record.getUserId())
                 .details(record.getDetails())
                 .sourceIp(record.getSourceIp())
                 .userAgent(record.getUserAgent())

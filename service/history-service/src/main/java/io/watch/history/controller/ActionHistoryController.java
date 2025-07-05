@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -62,7 +63,7 @@ public class ActionHistoryController {
      */
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<ActionRecord>> getUserHistory(
-            @PathVariable String userId,
+            @PathVariable UUID userId,
             @RequestParam(defaultValue = "50") @Min(1) @Max(1000) int limit) {
 
         List<ActionRecord> history = actionHistoryService.getActionHistoryForUser(userId, limit);

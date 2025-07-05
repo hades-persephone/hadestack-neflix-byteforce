@@ -116,6 +116,14 @@ public class User {
     @JoinColumn(name = "department_id", referencedColumnName = "id")
     private Department department;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "position_id", referencedColumnName = "id")
+    private Position position;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", referencedColumnName = "id")
+    private Organization organization;
+
     @Column(name = "enabled")
     private boolean enabled = true;
 

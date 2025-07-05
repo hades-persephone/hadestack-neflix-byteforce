@@ -72,13 +72,13 @@ public class CassandraPersistenceService {
     public CompletableFuture<Void> saveUserHistory(ActionHistoryByUser userActivity) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                log.debug("Attempting to save user history: {}", userActivity.getUserId());
+                log.debug("Attempting to save user history: {}", userActivity.getKey().getUserId());
                 cassandraTemplate.insert(userActivity);
-                log.debug("Successfully saved user history: {}", userActivity.getUserId());
+                log.debug("Successfully saved user history: {}", userActivity.getKey().getUserId());
                 return null;
             } catch (Exception e) {
                 log.error("Failed to save user history: {}, Error: {}",
-                        userActivity.getUserId(), e.getMessage());
+                        userActivity.getKey().getUserId(), e.getMessage());
                 throw new CassandraPersistenceException("Failed to save user history", e);
             }
         });
@@ -95,13 +95,13 @@ public class CassandraPersistenceService {
     public CompletableFuture<Void> updateWatchProgress(WatchProgress progress) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                log.debug("Attempting to update watch progress: {}", progress.getId());
+                log.debug("Attempting to update watch progress: {}", progress.getProgressId());
                 cassandraTemplate.insert(progress);
-                log.debug("Successfully updated watch progress: {}", progress.getId());
+                log.debug("Successfully updated watch progress: {}", progress.getProgressId());
                 return null;
             } catch (Exception e) {
                 log.error("Failed to update watch progress: {}, Error: {}",
-                        progress.getId(), e.getMessage());
+                        progress.getProgressId(), e.getMessage());
                 throw new CassandraPersistenceException("Failed to update watch progress", e);
             }
         });
@@ -133,9 +133,9 @@ public class CassandraPersistenceService {
                                             "(action_type, action_timestamp, user_id, entity_type, entity_id, details, source_ip, user_agent) " +
                                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                             .addPositionalValues(
-                                    activity.getActionType(),
-                                    activity.getActionTimestamp(),
-                                    activity.getUserId(),
+                                    activity.getKey().getActionType(),
+                                    activity.getKey().getActionTimestamp(),
+                                    activity.getKey().getUserId(),
                                     activity.getEntityType(),
                                     activity.getEntityId(),
                                     activity.getDetails(),
@@ -284,14 +284,14 @@ public class CassandraPersistenceService {
 
     @Recover
     public CompletableFuture<Void> recoverSaveUserHistory(Exception ex, ActionHistoryByUser userActivity) {
-        log.error("All retry attempts failed for user history: {}", userActivity.getUserId(), ex);
+        log.error("All retry attempts failed for user history: {}", userActivity.getKey().getUserId(), ex);
         return CompletableFuture.failedFuture(
                 new CassandraPersistenceException("Failed to save user history after retries", ex));
     }
 
     @Recover
     public CompletableFuture<Void> recoverUpdateWatchProgress(Exception ex, WatchProgress progress) {
-        log.error("All retry attempts failed for watch progress: {}", progress.getId(), ex);
+        log.error("All retry attempts failed for watch progress: {}", progress.getProgressId(), ex);
         return CompletableFuture.failedFuture(
                 new CassandraPersistenceException("Failed to update watch progress after retries", ex));
     }
