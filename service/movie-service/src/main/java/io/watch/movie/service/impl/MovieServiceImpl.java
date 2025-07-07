@@ -22,6 +22,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
@@ -45,9 +46,14 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MovieServiceImpl implements MovieService {
 
-    private static final Logger log = LoggerFactory.getLogger(MovieServiceImpl.class);
+    @Value("${cache.movie.default.ttl}")
+    private Long DEFAULT_TTL_MINUTES;
+
+    @Value("${cache.movie.popular.ttl}")
+    private Long POPULAR_MOVIE_TTL_MINUTES;
 
     private final MovieRepository movieRepository;
     private final CategoryRepository categoryRepository;
@@ -62,11 +68,12 @@ public class MovieServiceImpl implements MovieService {
     private final ObjectMapper objectMapper;
     private final CustomCacheKeyGenerator keyGenerator;
 
+    private static final String CACHE_NAME = "movies";
     private static final String MOVIE_NOT_FOUND = "Movie not found with ID: ";
 
     @Override
     @ReadOnly
-    @Cacheable(value = "movies", keyGenerator = "customCacheKeyGenerator")
+    @Cacheable(value = CACHE_NAME, keyGenerator = "customCacheKeyGenerator")
     public DataResults<MovieResponse> searchMoviesByQuery(MovieRequestSearch request, Pageable pageable, HttpServletRequest req) throws NoSuchMethodException {
 
         String generatedKey = (String) keyGenerator.generate(
@@ -98,7 +105,8 @@ public class MovieServiceImpl implements MovieService {
         log.debug("Cache miss for key: {}", generatedKey);
         DataResults<MovieResponse> result = movieRepository.search(query, request, pageable, req);
         try {
-            redisTemplate.opsForValue().set(generatedKey, result, 60, TimeUnit.MINUTES);
+            long ttl = result.getRecordsTotal() > 100 ? DEFAULT_TTL_MINUTES : POPULAR_MOVIE_TTL_MINUTES;
+            redisTemplate.opsForValue().set(generatedKey, result, ttl, TimeUnit.MINUTES);
             log.debug("Successfully cached search results");
         } catch (Exception e) {
             log.error("Error caching result: {}", e.getMessage());
@@ -117,15 +125,12 @@ public class MovieServiceImpl implements MovieService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "movies", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public MovieResponse createMovie(MovieRequest request) throws JsonProcessingException {
         validateMovieRequest(request);
 
         Movie movie = movieMapper.toEntity(request);
-        movie.setCategories(fetchCategories(request.getCategoryIds()));
-        movie.setActors(fetchActors(request.getActorIds()));
-        movie.setDirectors(fetchDirectors(request.getDirectorIds()));
-        movie.setLanguages(fetchLanguages(request.getLanguageIds()));
+        enrichMovieEntity(movie, request);
 
         movie = movieRepository.save(movie);
         sendNotification("NEW_MOVIE", "Phim mới: " + movie.getTitle());
@@ -135,7 +140,7 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
-    @Cacheable(value = "movies", key = "#id")
+    @Cacheable(value = CACHE_NAME, key = "#id")
     public MovieResponse getMovie(UUID id) {
         Movie movie = movieRepository.findById(id)
                 .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + id));
@@ -143,14 +148,14 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
-    @Cacheable(value = "movies", key = "'all'")
+    @Cacheable(value = CACHE_NAME, key = "'all'")
     public Page<Movie> getAllMovies(Pageable pageable) {
         return movieRepository.findAll(pageable);
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = "movies", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public MovieResponse updateMovie(UUID id, MovieRequest request) throws JsonProcessingException {
         validateMovieRequest(request);
 
@@ -159,10 +164,7 @@ public class MovieServiceImpl implements MovieService {
         Movie movie;
 
         movie = movieMapper.toEntity(request);
-        movie.setCategories(fetchCategories(request.getCategoryIds()));
-        movie.setActors(fetchActors(request.getActorIds()));
-        movie.setDirectors(fetchDirectors(request.getDirectorIds()));
-        movie.setLanguages(fetchLanguages(request.getLanguageIds()));
+        enrichMovieEntity(movie, request);
 
         movie = movieRepository.save(movie);
         sendNotification("UPDATE_MOVIE", "Phim cập nhật: " + movie.getTitle());
@@ -173,7 +175,7 @@ public class MovieServiceImpl implements MovieService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "movies", allEntries = true)
+    @CacheEvict(value = CACHE_NAME, allEntries = true)
     public void deleteMovie(UUID id) {
         Movie movie = movieRepository.findById(id)
                 .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + id));
@@ -194,7 +196,7 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
-    @Cacheable(value = "movies", key = "'category_' + #categoryId")
+    @Cacheable(value = CACHE_NAME, key = "'category_' + #categoryId")
     public List<MovieResponse> getMoviesByCategory(UUID categoryId) {
         return movieRepository.findByCategoriesId(categoryId).stream()
                 .filter(Movie::getIsAvailable)
@@ -204,7 +206,7 @@ public class MovieServiceImpl implements MovieService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "movies", key = "#movieId")
+    @CacheEvict(value = CACHE_NAME, key = "#movieId")
     public void incrementViewCount(UUID movieId) {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + movieId));
@@ -224,6 +226,13 @@ public class MovieServiceImpl implements MovieService {
         } catch (IOException e) {
             throw new MovieNotFoundException("Export movies template failed", e);
         }
+    }
+
+    private void enrichMovieEntity(Movie movie, MovieRequest request) {
+        movie.setCategories(fetchCategories(request.getCategoryIds()));
+        movie.setActors(fetchActors(request.getActorIds()));
+        movie.setDirectors(fetchDirectors(request.getDirectorIds()));
+        movie.setLanguages(fetchLanguages(request.getLanguageIds()));
     }
 
     private void validateMovieRequest(MovieRequest request) {
