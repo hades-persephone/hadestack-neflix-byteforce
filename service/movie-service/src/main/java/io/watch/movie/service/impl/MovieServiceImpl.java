@@ -12,6 +12,8 @@ import io.watch.movie.dto.request.MovieRequestSearch;
 import io.watch.movie.dto.response.MovieResponse;
 import io.watch.movie.entity.*;
 import io.watch.movie.exception.MovieNotFoundException;
+import io.watch.movie.handler.MovieCodeGenerator;
+import io.watch.movie.handler.kafka.KafkaErrorHandlerService;
 import io.watch.movie.repository.*;
 import io.watch.movie.service.MovieService;
 import io.watch.movie.util.ReadOnly;
@@ -28,8 +30,11 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,18 +42,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class MovieServiceImpl implements MovieService {
 
+    private final KafkaErrorHandlerService kafkaErrorHandlerService;
     @Value("${cache.movie.default.ttl}")
     private Long DEFAULT_TTL_MINUTES;
 
@@ -67,9 +70,11 @@ public class MovieServiceImpl implements MovieService {
     private final BaseNativeQueryExecutor query;
     private final ObjectMapper objectMapper;
     private final CustomCacheKeyGenerator keyGenerator;
+    private final MovieCodeGenerator codeGenerator;
 
     private static final String CACHE_NAME = "movies";
     private static final String MOVIE_NOT_FOUND = "Movie not found with ID: ";
+    private static final String KAFKA_TOPIC_NOTIFICATION = "movie-notifications";
 
     @Override
     @ReadOnly
@@ -105,7 +110,7 @@ public class MovieServiceImpl implements MovieService {
         log.debug("Cache miss for key: {}", generatedKey);
         DataResults<MovieResponse> result = movieRepository.search(query, request, pageable, req);
         try {
-            long ttl = result.getRecordsTotal() > 100 ? DEFAULT_TTL_MINUTES : POPULAR_MOVIE_TTL_MINUTES;
+            long ttl = Integer.parseInt(result.getRecordsTotal()) > 100 ? DEFAULT_TTL_MINUTES : POPULAR_MOVIE_TTL_MINUTES;
             redisTemplate.opsForValue().set(generatedKey, result, ttl, TimeUnit.MINUTES);
             log.debug("Successfully cached search results");
         } catch (Exception e) {
@@ -130,8 +135,11 @@ public class MovieServiceImpl implements MovieService {
         validateMovieRequest(request);
 
         Movie movie = movieMapper.toEntity(request);
-        enrichMovieEntity(movie, request);
-
+        enrich(movie, request);
+        List<Director> director = directorRepository.findByIdIn(request.getDirectorIds());
+        List<Category> categories = categoryRepository.findAllById(request.getCategoryIds());
+        String code = generateUniqueCode(request.getTitle(), request.getReleaseDate().getYear(), director.get(0).getFullName(), categories.get(0).getName());
+        movie.setCode(code);
         movie = movieRepository.save(movie);
         sendNotification("NEW_MOVIE", "Phim mới: " + movie.getTitle());
 
@@ -159,12 +167,11 @@ public class MovieServiceImpl implements MovieService {
     public MovieResponse updateMovie(UUID id, MovieRequest request) throws JsonProcessingException {
         validateMovieRequest(request);
 
-        movieRepository.findById(id)
+        Movie movie = movieRepository.findById(id)
                 .orElseThrow(() -> new MovieNotFoundException(MOVIE_NOT_FOUND + id));
-        Movie movie;
 
         movie = movieMapper.toEntity(request);
-        enrichMovieEntity(movie, request);
+        enrich(movie, request);
 
         movie = movieRepository.save(movie);
         sendNotification("UPDATE_MOVIE", "Phim cập nhật: " + movie.getTitle());
@@ -228,80 +235,34 @@ public class MovieServiceImpl implements MovieService {
         }
     }
 
-    private void enrichMovieEntity(Movie movie, MovieRequest request) {
-        movie.setCategories(fetchCategories(request.getCategoryIds()));
-        movie.setActors(fetchActors(request.getActorIds()));
-        movie.setDirectors(fetchDirectors(request.getDirectorIds()));
-        movie.setLanguages(fetchLanguages(request.getLanguageIds()));
+    public void enrich(Movie movie, MovieRequest request) {
+        movie.setCategories(fetchEntities(request.getCategoryIds(), categoryRepository, "category"));
+        movie.setActors(fetchEntities(request.getActorIds(), actorRepository, "actor"));
+        movie.setDirectors(fetchEntities(request.getDirectorIds(), directorRepository, "director"));
+        movie.setLanguages(fetchEntities(request.getLanguageIds(), languageRepository, "language"));
+        movie.setUpdatedAt(LocalDateTime.now());
+    }
+
+    private <T> Set<T> fetchEntities(Set<UUID> ids, JpaRepository<T, UUID> repository, String entityType) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return ids.stream()
+                .map(id -> repository.findById(id)
+                        .orElseThrow(() -> new IllegalArgumentException("Invalid " + entityType + " ID: " + id)))
+                .collect(Collectors.toSet());
     }
 
     private void validateMovieRequest(MovieRequest request) {
-        if (request.getDuration() < 1) {
-            throw new IllegalArgumentException("Duration must be at least 1 minute");
-        }
         if (request.getRatingScore() != null && (request.getRatingScore() < 0 || request.getRatingScore() > 10)) {
             throw new IllegalArgumentException("Rating score must be between 0 and 10");
         }
-    }
-
-    private Set<Category> fetchCategories(Set<UUID> categoryIds) {
-        if (categoryIds == null || categoryIds.isEmpty()) {
-            return Set.of();
+        if (request.getTitle() == null || request.getTitle().trim().isEmpty()) {
+            throw new IllegalArgumentException("Title cannot be empty");
         }
-        Set<Category> categories = categoryIds.stream()
-                .map(categoryRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-        if (categories.size() != categoryIds.size()) {
-            throw new IllegalArgumentException("One or more category IDs are invalid");
+        if (request.getReleaseDate() != null && request.getReleaseDate().isAfter(LocalDateTime.now().toLocalDate())) {
+            throw new IllegalArgumentException("Release date cannot be in the future");
         }
-        return categories;
-    }
-
-    private Set<Actor> fetchActors(Set<UUID> actorsIds) {
-        if (actorsIds == null || actorsIds.isEmpty()) {
-            return Set.of();
-        }
-        Set<Actor> actors = actorsIds.stream()
-                .map(actorRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-        if (actors.size() != actorsIds.size()) {
-            throw new IllegalArgumentException("One or more actor IDs are invalid");
-        }
-        return actors;
-    }
-
-    private Set<Director> fetchDirectors(Set<UUID> directorsIds) {
-        if (directorsIds == null || directorsIds.isEmpty()) {
-            return Set.of();
-        }
-        Set<Director> directors = directorsIds.stream()
-                .map(directorRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-        if (directors.size() != directorsIds.size()) {
-            throw new IllegalArgumentException("One or more directors IDs are invalid");
-        }
-        return directors;
-    }
-
-    private Set<Language> fetchLanguages(Set<UUID> languagesIds) {
-        if (languagesIds == null || languagesIds.isEmpty()) {
-            return Set.of();
-        }
-        Set<Language> languages = languagesIds.stream()
-                .map(languageRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-        if (languages.size() != languagesIds.size()) {
-            throw new IllegalArgumentException("One or more languages IDs are invalid");
-        }
-        return languages;
     }
 
 
@@ -310,16 +271,49 @@ public class MovieServiceImpl implements MovieService {
         return newScore != null ? newScore : 0.0;
     }
 
-    private void sendNotification(String type, String message) throws JsonProcessingException {
+    private String generateUniqueCode(String title, Integer releaseYear, String director, String genre) {
+        String code = codeGenerator.generateMeaningfulCode(title, releaseYear);
+
+        if (movieRepository.existsByCode(code)) {
+            code = codeGenerator.generateShortMeaningfulCode(title, releaseYear);
+        }
+
+        if (movieRepository.existsByCode(code)) {
+            code = codeGenerator.generateDirectorBasedCode(director, title, releaseYear);
+        }
+
+        if (movieRepository.existsByCode(code)) {
+            code = codeGenerator.generateNetflixStyleCode(title, releaseYear);
+        }
+
+        if (movieRepository.existsByCode(code)) {
+            code = codeGenerator.generateUUIDCode();
+        }
+
+        return code;
+    }
+
+    @Async
+    @CircuitBreaker(name = "kafkaNotification", fallbackMethod = "sendNotificationFallback")
+    public void sendNotification(String type, String message) throws JsonProcessingException {
         MovieNotificationDTO sendMessage = new MovieNotificationDTO(type, message);
         String json = objectMapper.writeValueAsString(sendMessage);
-        kafkaTemplate.send("movie-notifications", type, json)
+        kafkaTemplate.send(KAFKA_TOPIC_NOTIFICATION, type, json)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
+                        Map<String, Object> headers = new HashMap<>();
+                        headers.put("timestamp", LocalDateTime.now());
+                        headers.put("source", this.getClass().getSimpleName());
+                        kafkaErrorHandlerService.handlerKafkaError(KAFKA_TOPIC_NOTIFICATION, type, json, ex, headers);
                         log.error("❌ Kafka send failed: {} - {}, reason: {}", type, json, ex.getMessage());
                     } else {
                         log.info("✅ Kafka sent: {} - {}", type, json);
                     }
                 });
     }
+
+    public void sendNotificationFallback(String type, String message, Throwable t) {
+        log.warn("Kafka notification fallback triggered for type {}, message: {}, reason: {}", type, message, t.getMessage());
+    }
+
 }

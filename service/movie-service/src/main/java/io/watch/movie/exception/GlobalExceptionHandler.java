@@ -101,7 +101,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponseEntity<Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
         log.error("Data integrity violation at {}: {}", request.getRequestURI(), ex.getMessage());
-        return responseBuilder.error("DATA_INTEGRITY_VIOLATION", "Database operation failed due to constraint violation", null, request, HttpStatus.CONFLICT);
+        String rootCauseMessage = getRootCauseMessage(ex);
+        return responseBuilder.error(
+                "DATA_INTEGRITY_VIOLATION",
+                "Database operation failed due to constraint violation",
+                rootCauseMessage,
+                request,
+                HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(RequestNotPermitted.class)
@@ -125,6 +131,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponseEntity<Object>> handleOtherExceptions(Exception ex, HttpServletRequest request) {
         log.error(ex.getMessage(), ex);
         return responseBuilder.error("INTERNAL_SERVER_ERROR", "Unexpected error occurred", ex.getMessage(), request, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private String getRootCauseMessage(Throwable throwable) {
+        Throwable root = throwable;
+        while(root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return root.getMessage();
     }
 
 }

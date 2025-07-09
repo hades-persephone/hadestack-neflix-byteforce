@@ -1,5 +1,6 @@
 package io.watch.movie.config.queue;
 
+import io.watch.movie.handler.kafka.KafkaErrorProperties;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -8,6 +9,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
@@ -27,6 +29,7 @@ import java.util.stream.Collectors;
 
 @Configuration
 @EnableKafka
+@EnableConfigurationProperties(KafkaErrorProperties.class)
 public class KafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")

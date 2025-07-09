@@ -1,6 +1,7 @@
 package io.watch.movie.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -23,6 +24,11 @@ public class MovieRequest {
     @Size(max = 255, message = "Title must not exceed 255 characters")
     @Schema(description = "Title of the movie", example = "Inception")
     private String title;
+
+    @Column(unique = true, nullable = false, length = 50)
+    @Size(max = 50, message = "code cannot exceed 50 characters")
+    @Schema(description  = "Code of the movie", example = "A thief who steals secrets.")
+    private String code;
 
     @Schema(description = "Description of the movie", example = "A thief who steals secrets.")
     private String description;

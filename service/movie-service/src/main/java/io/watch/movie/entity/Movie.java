@@ -34,7 +34,7 @@ public class Movie extends EntityBase {
 
     @Column(unique = true, nullable = false, length = 50)
     @Size(max = 50, message = "code cannot exceed 50 characters")
-    @Schema(description  = "Code of the movie", example = "A thief who steals secrets.")
+    @Schema(description  = "Code of the movie", example = "HSNB-SPIDERMAN-7H4R")
     private String code;
 
     @Column(name = "description")

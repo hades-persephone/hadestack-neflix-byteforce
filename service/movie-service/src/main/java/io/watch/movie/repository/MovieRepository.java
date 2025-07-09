@@ -29,6 +29,9 @@ public interface MovieRepository extends JpaRepository<Movie, UUID> {
     @Query("SELECT m FROM Movie m WHERE m.isAvailable = true AND m.id = ?1")
     Optional<Movie> findByIdAndIsAvailableTrue(UUID uuid);
 
+    @Query("SELECT m FROM Movie m WHERE YEAR_EXTRACT(m.releaseDate) = :year")
+    List<Movie> findByReleaseDateYearExtract(@Param("year") int year);
+
     public default DataResults<MovieResponse> search(BaseNativeQueryExecutor query, MovieRequestSearch request, Pageable pageable, HttpServletRequest req) {
         Map<String, Object> params = new HashMap<>();
         StringBuilder sql = new StringBuilder();
@@ -228,4 +231,5 @@ public interface MovieRepository extends JpaRepository<Movie, UUID> {
             "ORDER BY title", nativeQuery = true)
     List<ContentResponse> searchContent(@Param("searchTerm") String searchTerm);
 
+    boolean existsByCode(String code);
 }
