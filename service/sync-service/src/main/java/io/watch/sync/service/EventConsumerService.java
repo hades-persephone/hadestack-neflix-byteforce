@@ -24,10 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.Optional;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -218,18 +215,17 @@ public class EventConsumerService {
     }
 
     private String handleDelete(String tableName, Map<String, Object> changeEvent, String operation) {
-        try {
-            JsonNode beforeNode = objectMapper.convertValue(changeEvent.get("before"), JsonNode.class);
+        try {JsonNode beforeNode = objectMapper.convertValue(changeEvent.get("before"), JsonNode.class);
             if (beforeNode == null || !beforeNode.has("id")) {
                 throw new EventProcessingException("Missing 'id' in 'before' data");
             }
 
             String entityId = beforeNode.get("id").asText();
-            String cacheKey = String.format("%s:%d", tableName, entityId);
+            String cacheKey = String.format("%s:%s", tableName, entityId);
             cacheService.evict(cacheKey);
-            String patternKey = String.format("%s:%d:*", tableName, entityId);
+            String patternKey = String.format("%s:%s:*", tableName, entityId);
             cacheService.evictPattern(patternKey);
-
+            processEntityData(tableName, beforeNode, operation);
             log.info("Removed {} entity with ID {} from cache after delete event", tableName, entityId);
             return entityId;
         } catch (Exception e) {
@@ -246,7 +242,27 @@ public class EventConsumerService {
 
             Map<String, Object> transformedData = dataTransformer.transform(data, mapping);
             String sql = buildSql(operation, mapping, transformedData);
-            targetJdbcTemplate.update(sql, transformedData.values().toArray());
+            String idColumn = mapping.getSourceIdColumn();
+            Object idValue = transformedData.get(idColumn);
+            if("u".equals(operation)) {
+                List<Object> values = transformedData.entrySet().stream()
+                        .filter(entry -> !idColumn.equals(entry.getKey()))
+                        .map(Map.Entry::getValue)
+                        .toList();
+                if(idValue == null) {
+                    throw new EventProcessingException("Missing or invalid " + idColumn + " in transformed data");
+                }
+                values = new ArrayList<>(values);
+                values.add(idValue);
+                targetJdbcTemplate.update(sql, values.toArray());
+            } else if("d".equals(operation)) {
+                if (idValue == null) {
+                    throw new EventProcessingException("Missing ID value for delete on table: " + tableName);
+                }
+                targetJdbcTemplate.update(sql, new Object[]{idValue});
+            }else {
+                targetJdbcTemplate.update(sql, transformedData.values().toArray());
+            }
             log.debug("Applied {} operation on table {}: SQL = {}", operation, mapping, sql);
         } catch (Exception e) {
             log.error("Error processing entity data for table {} and operation {}", tableName, operation, e);
@@ -270,7 +286,8 @@ public class EventConsumerService {
                 return String.format("UPDATE %s SET %s WHERE id = ?", targetTable, setClause);
 
             case "d":
-                return String.format("DELETE FROM %s WHERE id = ?", targetTable);
+                String idColumn = mapping.getSourceIdColumn();
+                return String.format("DELETE FROM %s WHERE %s = ?", targetTable, idColumn);
 
             default:
                 throw new EventProcessingException("Unsupported operation: " + operation);

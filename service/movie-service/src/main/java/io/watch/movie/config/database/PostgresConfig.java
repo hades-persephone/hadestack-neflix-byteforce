@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
@@ -99,6 +100,12 @@ public class PostgresConfig {
     public PlatformTransactionManager secondaryTransactionManager(
             @Qualifier("secondaryEntityManagerFactory") LocalContainerEntityManagerFactoryBean secondaryEntityManagerFactory) {
         return new JpaTransactionManager(Objects.requireNonNull(secondaryEntityManagerFactory.getObject()));
+    }
+
+    @Primary
+    @Bean
+    public JdbcTemplate jdbcTemplate(@Qualifier("routingDataSource") DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
     }
 
 }

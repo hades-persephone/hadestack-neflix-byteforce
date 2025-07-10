@@ -81,6 +81,27 @@ public class KafkaConsumerConfig {
         return createHandler(kafkaTemplate);
     }
 
+    @Bean
+    public ConsumerFactory<String, String> stringConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        return new DefaultKafkaConsumerFactory<>(props);
+    }
+
+    @Bean(name = "stringKafkaListenerContainerFactory")
+    public ConcurrentKafkaListenerContainerFactory<String, String> stringKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(stringConsumerFactory());
+        factory.setConcurrency(3);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
+        return factory;
+    }
+
     private <K, V> DefaultErrorHandler createHandler(KafkaTemplate<K, V> kafkaTemplate) {
         FixedBackOff fixedBackOff = new FixedBackOff(2000L, 3);
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,

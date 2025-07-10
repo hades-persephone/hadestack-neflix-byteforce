@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Component
@@ -35,9 +36,37 @@ public class DataTransformer {
                 } else {
                     convertedValue = null;
                 }
-            } else if ("id".equalsIgnoreCase(targetColumn) && value != null && value.isTextual()) {
-                convertedValue = UUID.fromString(value.asText());
-            } else {
+            } else if (value.isInt()) {
+                convertedValue = value.asInt();
+            } else if (value.isLong()) {
+                convertedValue = value.asLong();
+            } else if (value.isDouble()) {
+                convertedValue = value.asDouble();
+            } else if (value.isBoolean()) {
+                convertedValue = value.asBoolean();
+            } else if (targetColumn.toLowerCase().endsWith("id") && value != null && value.isTextual()) {
+                String uuidText = value.asText();
+                if("00000000-0000-0000-0000-000000000000".equals(uuidText)) {
+                    convertedValue = null;
+                } else {
+                    try {
+                        convertedValue = UUID.fromString(uuidText);
+                    } catch (IllegalArgumentException e) {
+                        convertedValue = null;
+                    }
+                }
+            } else if (value.isTextual()) {
+                String text = value.asText();
+                try {
+                    convertedValue = Date.valueOf(LocalDate.parse(text));
+                } catch (Exception e1) {
+                    try {
+                        convertedValue = Timestamp.valueOf(LocalDateTime.parse(text));
+                    } catch (Exception e2) {
+                        convertedValue = text;
+                    }
+                }
+            }  else {
                 convertedValue = value != null && !value.isNull() ? value.asText() : null;
             }
 
