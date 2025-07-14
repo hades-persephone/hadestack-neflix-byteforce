@@ -401,6 +401,20 @@ services:
     depends_on:
       - prometheus
 
+  axonserver:
+    image: axoniq/axonserver
+    container_name: axonserver
+    ports:
+      - "8024:8024"   # Web UI
+      - "8124:8124"   # gRPC (client kết nối)
+    volumes:
+      - axon_data:/axonserver/data
+      - axon_events:/axonserver/events
+      - axon_config:/axonserver/config
+      - ./axon-log:/axonserver/log
+    environment:
+      - AXONIQ_AXONSERVER_DEVMODE_ENABLED=true  # Cho phép khởi động nhanh trong dev
+
 volumes:
   jenkins_home:
   primary-data:
@@ -413,6 +427,9 @@ volumes:
   esdata:
   grafana-storage:
   prometheus-data:
+  axon_data:
+  axon_events:
+  axon_config:
 
 networks:
   kong-net:
