@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: rating-service
+
+  cassandra:
+    contact-points: 127.0.0.1
+    port: 9042
+    keyspace-name: rating_user_byteforce
+    schema-action: CREATE_IF_NOT_EXISTS
+    local-datacenter: dc1
+    request:
+      timeout: 10s
+    connection:
+      connect-timeout: 10s
+      init-query-timeout: 10s
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+
+  docker:
+    compose:
+      enabled: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+axon:
+  eventhandling:
+    processors:
+      tracking-event-processors: cassandra
+  axonserver:
+    enabled: false
+    servers: localhost:8124
+    context: default
+
+eventuate:
+  database:
+    schema: rating_user_byteforce
+  local:
+    cdc:
+      db:
+        url: cassandra://localhost:9042
+
+movie:
+  service:
+    url: localhost:9054
+
+user:
+  service:
+    url: localhost:9055
+
+cache:
+  redis:
+    ttl:
+      default: 7
+      movies: 14
+      series: 24
+    compression:
+      enabled: true
+  local:
+    enabled: true
+    maximum-size: 10000
+    ttl: 10
+  movie:
+    default:
+      ttl: 60
+    popular:
+      ttl: 60
+
+
+resilience4j.retry:
+  instances:
+    ratingServiceRetry:
+      max-attempts: 3
+      wait-duration: 1000ms
+      enable-exponential-backoff: true
+      exponential-backoff-multiplier: 2
+      retry-exceptions:
+        - java.lang.Exception
+      ignore-exceptions:
+        - io.watch.rating.exception.RatingNotFoundException

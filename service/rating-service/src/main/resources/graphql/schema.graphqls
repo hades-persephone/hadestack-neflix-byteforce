@@ -1,0 +1,67 @@
+scalar Datetime
+
+type Query {
+    ratingsByMovie(movieId: ID!, page: Int = 0, size: Int = 10): RatingPage!
+    averageRating(movieId: ID!): Float!
+    ratingStatistics(movieId: ID!): RatingStatistics
+}
+
+type Mutation {
+    submitRating(request: RatingCreateInput!): Rating!
+    deleteUserRatings(userId: ID!): Boolean
+}
+
+type Rating {
+    id: ID!
+    userId: ID!
+    movieId: ID!
+    rating: Int!
+    review: String
+    createdAt: String
+    isVerified: Boolean
+    status: RatingStatus
+}
+
+type RatingPage {
+    content: [Rating!]!
+    hasNext: Boolean!
+    hasPrevious: Boolean!
+    totalElements: Int!
+    totalPages: Int!
+    number: Int!
+    size: Int!
+}
+
+type RatingStatistics {
+    productId: String!
+    averageRating: Float
+    totalRatings: Int
+    oneStarCount: Int
+    twoStarCount: Int
+    threeStarCount: Int
+    fourStarCount: Int
+    fiveStarCount: Int
+    lastUpdated: String
+}
+
+input RatingCreateInput {
+    userId: ID!
+    movieId: ID!
+    rating: Int!
+    review: String
+    metadata: RatingMetadataInput
+}
+
+input RatingMetadataInput {
+    ipAddress: String
+    userAgent: String
+    deviceFingerprint: String
+    submissionTime: String
+}
+
+enum RatingStatus {
+    ACTIVE
+    FLAGGED
+    REMOVED
+    PENDING_REVIEW
+}

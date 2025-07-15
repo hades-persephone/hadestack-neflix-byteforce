@@ -1,5 +1,7 @@
 package io.watch.rating.service;
 
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryRegistry;
 import io.watch.rating.dto.FraudDetectionResult;
 import io.watch.rating.dto.RatingCreateRequest;
 import io.watch.rating.dto.RatingResponse;
@@ -14,6 +16,7 @@ import io.watch.rating.repository.StatisticsRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -23,11 +26,14 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.HtmlUtils;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 @Service
 @Slf4j
@@ -41,28 +47,128 @@ public class RatingService {
     private final FraudDetectionService fraudDetectionService;
     private final RatingAggregateService ratingAggregateService;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final RetryRegistry retryRegistry;
 
+    private static final String RATING_CREATED_TOPIC = "rating.created";
+    private static final String RATING_UPDATED_TOPIC = "rating.updated";
+    private static final String RATING_DELETED_TOPIC = "rating.deleted";
+    private static final String CACHE_KEY_PREFIX = "rating::";
+    private static final int MAX_REVIEW_LENGTH = 2000;
 
+    @Transactional
     public RatingResponse submittingRating(@Valid RatingCreateRequest request) {
         log.info("Submitting rating for user: {}, movie: {}", request.getUserId(), request.getMovieId());
-        FraudDetectionResult fraudDetectionResult = fraudDetectionService.detectFraud(request);
 
-        if(fraudDetectionResult.isFraudulent()) {
-            log.warn("Fraudulent rating detected: {}", fraudDetectionResult.getReasons());
+        Retry retry = retryRegistry.retry("ratingServiceRetry");
+
+        Supplier<RatingResponse> ratingSupplier = Retry.decorateSupplier(retry, () -> {
+            try {
+                validateRatingRequest(request);
+
+                FraudDetectionResult fraudDetectionResult = fraudDetectionService.detectFraud(request);
+
+                if(fraudDetectionResult.isFraudulent()) {
+                    log.warn("Fraudulent rating detected: {}", fraudDetectionResult.getReasons());
+                }
+
+                Optional<Rating> existingRating = ratingRepository.findById(request.getMovieId());
+                Rating rating;
+                rating = existingRating.map(value -> updateExistingRating(value, request, fraudDetectionResult))
+                        .orElseGet(() -> createNewRating(request, fraudDetectionResult));
+
+                RatingCreatedEvent event = RatingCreatedEvent.builder().build();
+
+                kafkaTemplate.send("", event);
+
+                applicationEventPublisher.publishEvent(event);
+
+                return mapToResponse(rating);
+            } catch (Exception e) {
+                log.error("Failed to submit rating for user: {}, movie: {}", request.getUserId(), request.getMovieId(), e);
+                throw new RuntimeException("Failed to submit rating", e);
+            }
+        });
+
+        return retry.executeSupplier(ratingSupplier);
+    }
+
+    private void publishRatingEvents(Rating rating, boolean isUpdate) {
+        try {
+            if (isUpdate) {
+                // Update event is handled in updateExistingRating method
+                return;
+            }
+
+            RatingCreatedEvent event = RatingCreatedEvent.builder()
+                    .userId(rating.getUserId())
+                    .movieId(rating.getMovieId())
+                    .ratingValue(rating.getRatingValue())
+                    .build();
+
+            CompletableFuture.runAsync(() -> {
+                try {
+                    kafkaTemplate.send(RATING_CREATED_TOPIC, event.getMovieId().toString(), event)
+                            .addCallback(
+                                    result -> log.debug("Successfully sent rating created event for rating: {}", event.getRatingId()),
+                                    failure -> log.error("Failed to send rating created event for rating: {}", event.getRatingId(), failure)
+                            );
+                } catch (Exception e) {
+                    log.error("Failed to publish rating created event", e);
+                }
+            });
+
+            applicationEventPublisher.publishEvent(event);
+
+        } catch (Exception e) {
+            log.error("Failed to publish rating events for rating: {}", rating.getId(), e);
+        }
+    }
+
+
+    private void publishRatingUpdateEvent(Rating rating, Integer oldRating, String oldReview) {
+        try {
+            RatingUpdatedEvent updateEvent = RatingUpdatedEvent.builder()
+                    .ratingId(rating.getId())
+                    .userId(rating.getUserId())
+                    .movieId(rating.getMovieId())
+                    .oldRating(oldRating)
+                    .newRating(rating.getRatingValue())
+                    .oldReview(oldReview)
+                    .newReview(rating.getReviewText())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+            CompletableFuture.runAsync(() -> {
+                try {
+                    kafkaTemplate.send(RATING_UPDATED_TOPIC, updateEvent.getRatingId().toString(), updateEvent)
+                            .addCallback(
+                                    result -> log.debug("Successfully sent rating updated event for rating: {}", updateEvent.getRatingId()),
+                                    failure -> log.error("Failed to send rating updated event for rating: {}", updateEvent.getRatingId())
+                            );
+                } catch (Exception e) {
+                    log.error("Failed to publish rating updated event", e);
+                }
+            });
+
+            applicationEventPublisher.publishEvent(updateEvent);
+
+        } catch (Exception e) {
+            log.error("Failed to publish rating update event for rating: {}", rating.getId(), e);
+        }
+    }
+
+    private void validateRatingRequest(RatingCreateRequest request) {
+        if (request.getRating() < 1 || request.getRating() > 5) {
+            throw new IllegalArgumentException("Rating must be between 1 and 5");
         }
 
-        Optional<Rating> existingRating = ratingRepository.findById(request.getMovieId());
-        Rating rating;
-        rating = existingRating.map(value -> updateExistingRating(value, request, fraudDetectionResult))
-                .orElseGet(() -> createNewRating(request, fraudDetectionResult));
+        if (request.getReview() != null && request.getReview().length() > MAX_REVIEW_LENGTH) {
+            throw new IllegalArgumentException("Review text exceeds maximum length of " + MAX_REVIEW_LENGTH);
+        }
 
-        RatingCreatedEvent event = RatingCreatedEvent.builder().build();
-
-        kafkaTemplate.send("", event);
-
-        applicationEventPublisher.publishEvent(event);
-
-        return mapToResponse(rating);
+        if (request.getUserId() == null || request.getMovieId() == null) {
+            throw new IllegalArgumentException("User ID and Movie ID are required");
+        }
     }
 
     private Rating createNewRating(@Valid RatingCreateRequest request, FraudDetectionResult fraudDetectionResult) {
@@ -118,32 +224,110 @@ public class RatingService {
         return updatedRating;
     }
 
-    @Cacheable(value = "movieRatings", key = "#movieId")
+    @Cacheable(value = "movieRatings", key = "#movieId + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
     public Slice<RatingResponse> getRatingsByMovie(UUID movieId, Pageable pageable) {
-        Page<Rating> ratings = (Page<Rating>) ratingRepository.findActiveByMovieId(movieId, pageable);
-        return ratings.map(this::mapToResponse);
+        try {
+            log.debug("Fetching ratings for movie: {} with page: {}, size: {}",
+                    movieId, pageable.getPageNumber(), pageable.getPageSize());
+
+            Page<Rating> ratings = (Page<Rating>) ratingRepository.findActiveByMovieId(movieId, pageable);
+            return ratings.map(this::mapToResponse);
+
+        } catch (Exception e) {
+            log.error("Failed to fetch ratings for movie: {}", movieId, e);
+            throw new RuntimeException("Failed to fetch movie ratings", e);
+        }
     }
 
     @Cacheable(value = "averageRatings", key = "#movieId")
     public Double getAverageRating(UUID movieId) {
-        return ratingRepository.findAverageRatingByMovieId(movieId).orElse(0.0);
+        try {
+            return ratingRepository.findAverageRatingByMovieId(movieId).orElse(0.0);
+        } catch (Exception e) {
+            log.error("Failed to calculate average rating for movie: {}", movieId, e);
+            return 0.0; // Return safe default
+        }
     }
 
     @Cacheable(value = "ratingStatistics", key = "#movieId")
     public RatingStatistics getRatingStatistics(UUID movieId) {
-        return statisticsRepository.findById(movieId).orElse(null);
+        try {
+            return statisticsRepository.findByMovieId(movieId).orElse(null);
+        } catch (Exception e) {
+            log.error("Failed to fetch rating statistics for movie: {}", movieId, e);
+            return null;
+        }
     }
 
+    @Cacheable(value = "rating", key = "#ratingId")
+    public CompletableFuture<Rating> findById(UUID ratingId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return ratingRepository.findById(ratingId)
+                        .orElseThrow(() -> new RuntimeException("Rating not found with ID: " + ratingId));
+            } catch (Exception e) {
+                log.error("Failed to find rating with ID: {}", ratingId, e);
+                throw new RuntimeException("Failed to find rating", e);
+            }
+        });
+    }
+
+
+    public Slice<Rating> findAll(int page, int size) {
+        try {
+            Pageable pageable = Pageable.ofSize(size).withPage(page);
+            return ratingRepository.findAll(pageable);
+        } catch (Exception e) {
+            log.error("Failed to fetch all ratings with page: {}, size: {}", page, size, e);
+            throw new RuntimeException("Failed to fetch ratings", e);
+        }
+    }
+
+    public Slice<Rating> findByUserId(UUID userId, Pageable pageable) {
+        try {
+            return ratingRepository.findActiveByUserId(userId, pageable);
+        } catch (Exception e) {
+            log.error("Failed to fetch ratings for user: {}", userId, e);
+            throw new RuntimeException("Failed to fetch user ratings", e);
+        }
+    }
+
+    @Transactional
+    @CacheEvict(value = {"movieRatings", "averageRatings", "ratingStatistics"}, allEntries = true)
     public void deleteUserRatings(UUID userId) {
         log.info("Deleting all ratings for user: {}", userId);
 
-        Page<Rating> userRatings = (Page<Rating>) ratingRepository.findActiveByUserId(userId, Pageable.unpaged());
+        try {
+            Page<Rating> userRatings = ratingRepository.findActiveByUserId(userId, Pageable.unpaged());
 
-        userRatings.forEach(rating -> {
-            rating.setStatus(RatingStatus.REMOVED);
-            ratingRepository.save(rating);
+            userRatings.forEach(rating -> {
+                try {
+                    rating.setStatus(RatingStatus.REMOVED);
+                    rating.setUpdatedAt(LocalDateTime.now());
+                    ratingRepository.save(rating);
 
-            // Publish deletion event
+                    // Publish deletion event
+                    publishRatingDeletionEvent(rating);
+
+                    // Evict specific cache entries
+                    evictRatingCache(rating.getMovieId());
+
+                } catch (Exception e) {
+                    log.error("Failed to delete rating: {} for user: {}", rating.getId(), userId, e);
+                }
+            });
+
+            log.info("Successfully deleted {} ratings for user: {}", userRatings.getTotalElements(), userId);
+
+        } catch (Exception e) {
+            log.error("Failed to delete ratings for user: {}", userId, e);
+            throw new RuntimeException("Failed to delete user ratings", e);
+        }
+    }
+
+
+    private void publishRatingDeletionEvent(Rating rating) {
+        try {
             RatingDeletedEvent event = RatingDeletedEvent.builder()
                     .ratingId(rating.getId())
                     .userId(rating.getUserId())
@@ -152,11 +336,25 @@ public class RatingService {
                     .reason("User requested deletion")
                     .build();
 
-            kafkaTemplate.send("rating.deleted", event);
-            evictRatingCache(rating.getMovieId());
-        });
+            CompletableFuture.runAsync(() -> {
+                try {
+                    kafkaTemplate.send(RATING_DELETED_TOPIC, event.getRatingId().toString(), event)
+                            .addCallback(
+                                    result -> log.debug("Successfully sent rating deleted event for rating: {}", event.getRatingId()),
+                                    failure -> log.error("Failed to send rating deleted event for rating: {}", event.getRatingId(), failure)
+                            );
+                } catch (Exception e) {
+                    log.error("Failed to publish rating deleted event", e);
+                }
+            });
+
+            applicationEventPublisher.publishEvent(event);
+
+        } catch (Exception e) {
+            log.error("Failed to publish rating deletion event for rating: {}", rating.getId(), e);
+        }
     }
-    
+
     private RatingResponse mapToResponse(Rating rating) {
         return RatingResponse.builder()
                 .id(rating.getId())
@@ -171,9 +369,13 @@ public class RatingService {
     }
 
     private void evictRatingCache(UUID movieId) {
-        redisTemplate.delete("productRatings::" + movieId);
-        redisTemplate.delete("averageRatings::" + movieId);
-        redisTemplate.delete("ratingStatistics::" + movieId);
+        try {
+            redisTemplate.delete("movieRatings::" + movieId + "*");
+            redisTemplate.delete("averageRatings::" + movieId);
+            redisTemplate.delete("ratingStatistics::" + movieId);
+        } catch (Exception e) {
+            log.error("Failed to evict cache for movie: {}", movieId, e);
+        }
     }
 
 }
