@@ -1,4 +1,3 @@
-scalar Datetime
 
 type Query {
     ratingsByMovie(movieId: ID!, page: Int = 0, size: Int = 10): RatingPage!

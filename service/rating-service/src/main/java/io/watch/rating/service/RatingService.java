@@ -11,6 +11,7 @@ import io.watch.rating.entity.RatingStatus;
 import io.watch.rating.event.RatingCreatedEvent;
 import io.watch.rating.event.RatingDeletedEvent;
 import io.watch.rating.event.RatingUpdatedEvent;
+import io.watch.rating.exception.RatingNotFoundException;
 import io.watch.rating.repository.RatingRepository;
 import io.watch.rating.repository.StatisticsRepository;
 import jakarta.validation.Valid;
@@ -19,9 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.*;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.retry.annotation.Retryable;
@@ -108,10 +107,13 @@ public class RatingService {
             CompletableFuture.runAsync(() -> {
                 try {
                     kafkaTemplate.send(RATING_CREATED_TOPIC, event.getMovieId().toString(), event)
-                            .addCallback(
-                                    result -> log.debug("Successfully sent rating created event for rating: {}", event.getRatingId()),
-                                    failure -> log.error("Failed to send rating created event for rating: {}", event.getRatingId(), failure)
-                            );
+                            .whenComplete((result, ex) -> {
+                                if (ex == null) {
+                                    log.debug("Successfully sent rating created event for rating: {}", event.getMovieId());
+                                } else {
+                                    log.error("Failed to send rating created event for rating: {}", event.getMovieId(), ex);
+                                }
+                            });
                 } catch (Exception e) {
                     log.error("Failed to publish rating created event", e);
                 }
@@ -141,10 +143,13 @@ public class RatingService {
             CompletableFuture.runAsync(() -> {
                 try {
                     kafkaTemplate.send(RATING_UPDATED_TOPIC, updateEvent.getRatingId().toString(), updateEvent)
-                            .addCallback(
-                                    result -> log.debug("Successfully sent rating updated event for rating: {}", updateEvent.getRatingId()),
-                                    failure -> log.error("Failed to send rating updated event for rating: {}", updateEvent.getRatingId())
-                            );
+                            .whenComplete((result, ex) -> {
+                                if (ex == null) {
+                                    log.debug("Successfully sent rating created event for rating: {}", updateEvent.getMovieId());
+                                } else {
+                                    log.error("Failed to send rating created event for rating: {}", updateEvent.getMovieId(), ex);
+                                }
+                            });
                 } catch (Exception e) {
                     log.error("Failed to publish rating updated event", e);
                 }
@@ -262,34 +267,32 @@ public class RatingService {
     @Cacheable(value = "rating", key = "#ratingId")
     public CompletableFuture<Rating> findById(UUID ratingId) {
         return CompletableFuture.supplyAsync(() -> {
-            try {
-                return ratingRepository.findById(ratingId)
-                        .orElseThrow(() -> new RuntimeException("Rating not found with ID: " + ratingId));
-            } catch (Exception e) {
-                log.error("Failed to find rating with ID: {}", ratingId, e);
-                throw new RuntimeException("Failed to find rating", e);
-            }
+            log.debug("Finding rating by ID: {}", ratingId);
+            return ratingRepository.findById(ratingId)
+                    .orElseThrow(() -> new RatingNotFoundException("Rating not found with ID: " + ratingId));
         });
     }
 
 
-    public Slice<Rating> findAll(int page, int size) {
-        try {
-            Pageable pageable = Pageable.ofSize(size).withPage(page);
-            return ratingRepository.findAll(pageable);
-        } catch (Exception e) {
-            log.error("Failed to fetch all ratings with page: {}, size: {}", page, size, e);
-            throw new RuntimeException("Failed to fetch ratings", e);
-        }
+    @Transactional(readOnly = true)
+    public Slice<Rating> findAll(int page, int size, String sortBy, String sortDirection) {
+        log.debug("Finding all ratings with page: {}, size: {}, sort: {} {}",
+                page, size, sortBy, sortDirection);
+
+        Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), sortBy);
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        return ratingRepository.findAll(pageable);
     }
 
-    public Slice<Rating> findByUserId(UUID userId, Pageable pageable) {
-        try {
-            return ratingRepository.findActiveByUserId(userId, pageable);
-        } catch (Exception e) {
-            log.error("Failed to fetch ratings for user: {}", userId, e);
-            throw new RuntimeException("Failed to fetch user ratings", e);
-        }
+    public Slice<Rating> findByUserId(UUID userId, Pageable pageable, String sortBy, String sortDirection) {
+        log.debug("Finding ratings for user ID: {} with pageable: {}, sort: {} {}",
+                userId, pageable, sortBy, sortDirection);
+
+        Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), sortBy);
+        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
+
+        return ratingRepository.findByUserId(userId, sortedPageable);
     }
 
     @Transactional
@@ -298,7 +301,7 @@ public class RatingService {
         log.info("Deleting all ratings for user: {}", userId);
 
         try {
-            Page<Rating> userRatings = ratingRepository.findActiveByUserId(userId, Pageable.unpaged());
+            Slice<Rating> userRatings = ratingRepository.findActiveByUserId(userId, Pageable.unpaged());
 
             userRatings.forEach(rating -> {
                 try {
@@ -317,7 +320,7 @@ public class RatingService {
                 }
             });
 
-            log.info("Successfully deleted {} ratings for user: {}", userRatings.getTotalElements(), userId);
+            log.info("Successfully deleted {} ratings for user: {}", userRatings.getNumberOfElements(), userId);
 
         } catch (Exception e) {
             log.error("Failed to delete ratings for user: {}", userId, e);
@@ -339,10 +342,13 @@ public class RatingService {
             CompletableFuture.runAsync(() -> {
                 try {
                     kafkaTemplate.send(RATING_DELETED_TOPIC, event.getRatingId().toString(), event)
-                            .addCallback(
-                                    result -> log.debug("Successfully sent rating deleted event for rating: {}", event.getRatingId()),
-                                    failure -> log.error("Failed to send rating deleted event for rating: {}", event.getRatingId(), failure)
-                            );
+                            .whenComplete((result, ex) -> {
+                                if (ex == null) {
+                                    log.debug("Successfully sent rating created event for rating: {}", event.getRatingId());
+                                } else {
+                                    log.error("Failed to send rating created event for rating: {}", event.getRatingId(), ex);
+                                }
+                            });
                 } catch (Exception e) {
                     log.error("Failed to publish rating deleted event", e);
                 }
@@ -354,6 +360,48 @@ public class RatingService {
             log.error("Failed to publish rating deletion event for rating: {}", rating.getId(), e);
         }
     }
+
+
+    @Transactional(readOnly = true)
+    public Long getRatingCount(UUID movieId) {
+        log.debug("Getting rating count for movie ID: {}", movieId);
+        return ratingRepository.countByMovieId(movieId);
+    }
+
+    @Transactional(readOnly = true)
+    public Boolean hasUserRated(UUID userId, UUID movieId) {
+        log.debug("Checking if user {} has rated movie {}", userId, movieId);
+        return ratingRepository.existsByUserIdAndMovieId(userId, movieId);
+    }
+
+    @Transactional(readOnly = true)
+    public Slice<Rating> findRecentRatings(int page, int size) {
+        log.debug("Finding recent ratings with page: {}, size: {}", page, size);
+
+        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt");
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        return ratingRepository.findAll(pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Slice<Rating> findTopRatedMovies(int page, int size) {
+        log.debug("Finding top rated movies with page: {}, size: {}", page, size);
+
+        Pageable pageable = PageRequest.of(page, size);
+        return ratingRepository.findTopRatedMovies(pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Slice<Rating> findRatingsByRatingValue(int ratingValue, int page, int size) {
+        log.debug("Finding ratings with value: {} with page: {}, size: {}", ratingValue, page, size);
+
+        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt");
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        return ratingRepository.findByRatingValue(ratingValue, pageable);
+    }
+
 
     private RatingResponse mapToResponse(Rating rating) {
         return RatingResponse.builder()

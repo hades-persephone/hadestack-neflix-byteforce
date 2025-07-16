@@ -91,9 +91,9 @@ public class RedisConfiguration {
     @Bean
     public RedisCacheManager redisCacheManager(RedisConnectionFactory redisConnectionFactory) {
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
-        cacheConfigurations.put("movies", createDefaultCacheConfig(Duration.ofDays(moviesTtlDays)));
-        cacheConfigurations.put("series", createDefaultCacheConfig(Duration.ofDays(seriesTtlDays)));
-        cacheConfigurations.put("directors", createDefaultCacheConfig(Duration.ofMinutes(20)));
+        cacheConfigurations.put("ratings", createDefaultCacheConfig(Duration.ofDays(moviesTtlDays)));
+        cacheConfigurations.put("rating_statistics", createDefaultCacheConfig(Duration.ofDays(seriesTtlDays)));
+        cacheConfigurations.put("rating_aggregate", createDefaultCacheConfig(Duration.ofMinutes(20)));
 
         return RedisCacheManager.builder(redisConnectionFactory)
                 .cacheDefaults(cacheConfiguration())

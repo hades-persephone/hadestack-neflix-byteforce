@@ -1,19 +1,19 @@
 package io.watch.rating.client;
 
+import io.github.resilience4j.reactor.retry.RetryOperator;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
 import io.watch.rating.dto.MovieValidationResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.UUID;
 
 @Slf4j
@@ -21,9 +21,35 @@ import java.util.UUID;
 public class MovieServiceClient {
 
     private final WebClient webClient;
+    private final Retry movieValidationRetry;
 
-    public MovieServiceClient(@Qualifier("movieWebClient") WebClient webClient) {
+    public MovieServiceClient(@Qualifier("movieWebClient") WebClient webClient, RetryRegistry retryRegistry) {
         this.webClient = webClient;
+
+        RetryConfig userValidationConfig = RetryConfig.custom()
+                .maxAttempts(3)
+                .waitDuration(Duration.ofMillis(500))
+                .retryExceptions(
+                        HttpClientErrorException.class,
+                        WebClientResponseException.InternalServerError.class,
+                        WebClientResponseException.BadGateway.class,
+                        WebClientResponseException.ServiceUnavailable.class,
+                        WebClientResponseException.GatewayTimeout.class
+                )
+                .ignoreExceptions(
+                        WebClientResponseException.NotFound.class,
+                        WebClientResponseException.BadRequest.class,
+                        WebClientResponseException.Unauthorized.class,
+                        WebClientResponseException.Forbidden.class
+                )
+                .build();
+        this.movieValidationRetry = retryRegistry.retry("movieValidation", userValidationConfig);
+
+        movieValidationRetry.getEventPublisher()
+                .onRetry(event -> log.warn("Movie validation retry attempt {} for movie validation",
+                        event.getNumberOfRetryAttempts()))
+                .onError(event -> log.error("Movie validation failed after {} attempts: {}",
+                        event.getNumberOfRetryAttempts(), event.getLastThrowable().getMessage()));
     }
 
     public Mono<MovieValidationResponse> validateMovie(UUID movieId) {
@@ -37,6 +63,7 @@ public class MovieServiceClient {
                 .retrieve()
                 .bodyToMono(MovieValidationResponse.class)
                 .doOnNext(response -> log.info("Movie validation response received for ID: {}", movieId))
+                .transformDeferred(RetryOperator.of(movieValidationRetry))
                 .onErrorResume(WebClientResponseException.class, e -> {
                     log.warn("Movie service returned error: {}", e.getMessage());
                     return Mono.just(MovieValidationResponse.builder()

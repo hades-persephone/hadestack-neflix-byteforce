@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -29,7 +30,7 @@ public class RatingMutationResolver {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 RatingCreateRequest request = convertToRatingCreateRequest(requestInput);
-                return ratingService.submitRating(request);
+                return ratingService.submittingRating(request);
             } catch (Exception e) {
                 log.error("Error submitting rating", e);
                 throw new RatingServiceException("Failed to submit rating", e);
@@ -84,7 +85,7 @@ public class RatingMutationResolver {
         metadata.setIpAddress((String) metadataMap.get("ipAddress"));
         metadata.setUserAgent((String) metadataMap.get("userAgent"));
         metadata.setDeviceFingerprint((String) metadataMap.get("deviceFingerprint"));
-        metadata.setSubmissionTime((String) metadataMap.get("submissionTime"));
+        metadata.setSubmissionTime(LocalDateTime.parse((String) metadataMap.get("submissionTime")));
         return metadata;
     }
 }
