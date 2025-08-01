@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: auth-service
+  cloud:
+    config:
+      uri: https://github.com/hades-persephone/hadestack-netflix-cloud-server.git
+      label: main
+      profile: dev

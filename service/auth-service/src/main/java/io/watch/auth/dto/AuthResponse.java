@@ -1,9 +1,6 @@
 package io.watch.auth.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.List;
 
@@ -12,6 +9,8 @@ import java.util.List;
  */
 @Data
 @Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class AuthResponse {
@@ -26,22 +25,10 @@ public class AuthResponse {
     private List<String> roles;
     private List<String> permissions;
 
-    /**
-     * Check if the user has a specific role.
-     *
-     * @param roleName the name of the role to check
-     * @return true if the user has the role, false otherwise
-     */
     public boolean hasRole(String roleName) {
         return roles != null && roles.contains(roleName);
     }
 
-    /**
-     * Check if the user has a specific permission.
-     *
-     * @param permissionName the name of the permission to check
-     * @return true if the user has the permission, false otherwise
-     */
     public boolean hasPermission(String permissionName) {
         return permissions != null && permissions.contains(permissionName);
     }

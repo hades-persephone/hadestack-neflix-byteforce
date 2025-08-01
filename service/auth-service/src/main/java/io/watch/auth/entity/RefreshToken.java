@@ -1,10 +1,7 @@
 package io.watch.auth.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -17,6 +14,8 @@ import java.time.LocalDateTime;
 @Table(name = "refresh_tokens")
 @Data
 @Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class RefreshToken {
