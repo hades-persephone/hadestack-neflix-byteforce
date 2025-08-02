@@ -1,5 +1,7 @@
 package io.watch.auth.util;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
@@ -34,6 +36,20 @@ public class CacheUtils {
             Cache.ValueWrapper valueWrapper = cache.get(key);
             if (valueWrapper != null && valueWrapper.get() != null) {
                 return Optional.of(type.cast(valueWrapper.get()));
+            }
+        }
+        return Optional.empty();
+    }
+
+    public <T> Optional<T> getFromCache(String cacheName, Object key, TypeReference<T> typeRef) {
+        Cache cache = cacheManager.getCache(cacheName);
+        if (cache != null) {
+            Cache.ValueWrapper valueWrapper = cache.get(key);
+            if (valueWrapper != null && valueWrapper.get() != null) {
+                Object rawValue = valueWrapper.get();
+                ObjectMapper mapper = new ObjectMapper();
+                T result = mapper.convertValue(rawValue, typeRef);
+                return Optional.of(result);
             }
         }
         return Optional.empty();

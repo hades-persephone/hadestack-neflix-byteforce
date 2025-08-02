@@ -1,13 +1,13 @@
 package io.watch.auth.filter;
 
-import io.watch.auth.client.OPAClient;
-import io.watch.auth.service.PermissionMappingService;
+import io.watch.auth.service.AuthorizationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -19,34 +19,27 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Filter for OPA-based authorization.
- * This filter checks if the request is authorized using OPA.
- */
 @Component
-@Order(3) // After JwtAuthenticationFilter and RequestContextFilter
+@Order(3)
 @RequiredArgsConstructor
 @Slf4j
 public class OPAAuthorizationFilter extends OncePerRequestFilter {
 
-    private final OPAClient opaClient;
-    private final PermissionMappingService permissionMappingService;
+    private final AuthorizationService authorizationService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull FilterChain filterChain)
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        // Skip authorization for public endpoints
-        if (permissionMappingService.isPublicEndpoint(method, path)) {
+        if (authorizationService.isPublicEndpoint(method, path)) {
             log.debug("Skipping authorization for public endpoint: {} {}", method, path);
             filterChain.doFilter(request, response);
             return;
         }
 
-        // Get the current authentication
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             log.warn("Unauthorized access attempt to {} {}", method, path);
@@ -54,11 +47,9 @@ public class OPAAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Prepare input for OPA
         Map<String, Object> input = buildOPAInput(request, authentication);
 
-        // Check if the request is authorized
-        boolean isAuthorized = opaClient.isAuthorized(input);
+        boolean isAuthorized = authorizationService.isAuthorized(input);
 
         if (isAuthorized) {
             log.debug("Request authorized: {} {}", method, path);
@@ -69,30 +60,20 @@ public class OPAAuthorizationFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * Build the input for OPA.
-     *
-     * @param request the HTTP request
-     * @param authentication the authentication
-     * @return the input for OPA
-     */
     private Map<String, Object> buildOPAInput(HttpServletRequest request, Authentication authentication) {
         Map<String, Object> input = new HashMap<>();
 
-        // Request information
         Map<String, Object> requestInfo = new HashMap<>();
         requestInfo.put("method", request.getMethod());
         requestInfo.put("path", request.getRequestURI());
         requestInfo.put("headers", getHeadersMap(request));
         input.put("request", requestInfo);
 
-        // User information
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("id", authentication.getName());
         userInfo.put("roles", authentication.getAuthorities());
         input.put("user", userInfo);
 
-        // Context information from request attributes
         Map<String, Object> contextInfo = new HashMap<>();
         String tenantId = (String) request.getAttribute("tenantId");
         if (tenantId != null) {
@@ -111,12 +92,6 @@ public class OPAAuthorizationFilter extends OncePerRequestFilter {
         return input;
     }
 
-    /**
-     * Get a map of headers from the request.
-     *
-     * @param request the HTTP request
-     * @return a map of headers
-     */
     private Map<String, String> getHeadersMap(HttpServletRequest request) {
         Map<String, String> headers = new HashMap<>();
         request.getHeaderNames().asIterator().forEachRemaining(headerName -> {

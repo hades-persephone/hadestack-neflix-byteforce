@@ -27,7 +27,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest loginRequest) {
-        return ResponseEntity.ok(authService.login(loginRequest));
+        return ResponseEntity.ok(authService.login(loginRequest).block());
     }
 
     /**
@@ -38,7 +38,7 @@ public class AuthController {
      */
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest registerRequest) {
-        return ResponseEntity.ok(authService.register(registerRequest));
+        return ResponseEntity.ok(authService.register(registerRequest).block());
     }
 
     /**

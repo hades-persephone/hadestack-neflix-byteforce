@@ -1,5 +1,6 @@
 package io.watch.auth.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.watch.auth.dto.PermissionMapResponse;
 import io.watch.auth.entity.PermissionMapping;
 import io.watch.auth.repository.PermissionMappingRepository;
@@ -129,11 +130,10 @@ public class PermissionMappingServiceImpl implements PermissionMappingService {
      * @return a map of contextual attribute names to requirements, or an empty map if no contextual requirements
      */
     @Override
-    @SuppressWarnings("unchecked")
     public Mono<Map<String, String>> getContextualRequirementsForEndpoint(String httpMethod, String path) {
         String key = httpMethod + ":" + path;
         return Mono.fromCallable(() -> {
-            return cacheUtils.getFromCache("contextualRequirements", key, Map.class)
+            return cacheUtils.getFromCache("contextualRequirements", key, new TypeReference<Map<String, String>>() {})
                     .orElseGet(() -> {
                         Map<String, String> requirements = new HashMap<>();
                         permissionMappingRepository.findByHttpMethodAndPathPattern(httpMethod, path)

@@ -14,12 +14,6 @@ import java.time.Duration;
 @Configuration
 public class RestTemplateConfig {
 
-    /**
-     * Create a RestTemplate bean with configured timeout.
-     *
-     * @param opaProperties the OPA properties
-     * @return the RestTemplate
-     */
     @Bean
     public RestTemplate restTemplate(OPAProperties opaProperties) {
         return new RestTemplateBuilder()
@@ -28,11 +22,6 @@ public class RestTemplateConfig {
                 .build();
     }
 
-    /**
-     * Create an ObjectMapper bean.
-     *
-     * @return the ObjectMapper
-     */
     @Bean
     public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
         return new com.fasterxml.jackson.databind.ObjectMapper();

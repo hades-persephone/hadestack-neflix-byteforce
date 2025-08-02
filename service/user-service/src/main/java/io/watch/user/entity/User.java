@@ -1,8 +1,11 @@
 package io.watch.user.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.watch.movie.entity.substraction.AccountStatus;
-import io.watch.movie.entity.substraction.Gender;
+import io.watch.user.entity.substraction.AccountStatus;
+import io.watch.user.entity.substraction.Gender;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
+import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 

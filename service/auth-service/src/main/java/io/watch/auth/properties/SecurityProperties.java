@@ -1,5 +1,4 @@
 package io.watch.auth.properties;
 
-public class SecurityProperties
-{
+public class SecurityProperties {
 }

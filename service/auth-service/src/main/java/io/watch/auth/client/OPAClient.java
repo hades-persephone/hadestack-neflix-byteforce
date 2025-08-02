@@ -17,7 +17,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Client for interacting with OPA (Open Policy Agent).

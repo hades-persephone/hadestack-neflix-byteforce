@@ -3,6 +3,8 @@ package io.watch.auth.service;
 import io.watch.auth.dto.PermissionMapResponse;
 import reactor.core.publisher.Mono;
 
+import java.util.Map;
+
 /**
  * Service interface for managing permission mappings.
  */
@@ -59,5 +61,5 @@ public interface PermissionMappingService {
      * @param path the path
      * @return a map of contextual attribute names to requirements, or an empty map if no contextual requirements
      */
-    Mono<java.util.Map<String, String>> getContextualRequirementsForEndpoint(String httpMethod, String path);
+    Mono<Map<String, String>> getContextualRequirementsForEndpoint(String httpMethod, String path);
 }

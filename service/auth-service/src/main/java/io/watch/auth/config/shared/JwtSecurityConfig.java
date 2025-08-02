@@ -17,10 +17,6 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.util.Base64;
 
-/**
- * Shared JWT security configuration for microservices.
- * This configuration can be imported by other services to enable JWT validation.
- */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true)
@@ -35,13 +31,6 @@ public class JwtSecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
 
-    /**
-     * Configure security for the service.
-     *
-     * @param http the HttpSecurity to configure
-     * @return the configured SecurityFilterChain
-     * @throws Exception if an error occurs
-     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -63,14 +52,8 @@ public class JwtSecurityConfig {
         return http.build();
     }
 
-    /**
-     * Create a JWT decoder for validating JWT tokens.
-     *
-     * @return the JWT decoder
-     */
     @Bean
     public JwtDecoder jwtDecoder() {
-        // For HS256, we need to use a SecretKey
         byte[] keyBytes = Base64.getDecoder().decode(jwtSecret);
         SecretKey secretKey = new SecretKeySpec(keyBytes, "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(secretKey).build();
