@@ -15,11 +15,11 @@
         <module>service/analytics-service</module>
         <module>service/notification-service</module>
         <module>service/payment-service</module>
-        <module>service/rating-service</module>
         <module>service/recommendation-service</module>
         <module>service/search-service</module>
         <module>service/stream-service</module>
         <module>service/user-service</module>
+        <module>service/rating-service</module>
         <module>service/sync-service</module>
         <module>service/history-service</module>
         <module>service/base-data</module>

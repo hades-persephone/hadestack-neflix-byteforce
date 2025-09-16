@@ -180,6 +180,19 @@ public class CommonUtil {
         return org.apache.commons.collections4.CollectionUtils.isNotEmpty(collection);
     }
 
+    public static <T> List<T> removeDuplicateAndNull(List<T> lst) {
+        if (lst == null || lst.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<T> set = new HashSet<>();
+        for (T t : lst) {
+            if(t != null) {
+                set.add(t);
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
     public static boolean isEmpty(Map<?, ?> map) {
         return MapUtils.isEmpty(map);
     }
