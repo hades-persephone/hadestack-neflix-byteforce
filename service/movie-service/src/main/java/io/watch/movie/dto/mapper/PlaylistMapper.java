@@ -12,7 +12,7 @@ import org.mapstruct.factory.Mappers;
 public interface PlaylistMapper {
 
     PlaylistMapper INSTANCE = Mappers.getMapper(PlaylistMapper.class);
-
     Playlist toEntity(PlaylistRequest request);
+
     PlaylistResponse toResponse(Playlist playlist);
 }

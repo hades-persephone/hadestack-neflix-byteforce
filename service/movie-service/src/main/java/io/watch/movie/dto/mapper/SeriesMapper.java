@@ -10,5 +10,6 @@ import org.mapstruct.Mapping;
 public interface SeriesMapper {
 
     Series toEntity(SeriesRequest request);
+
     SeriesResponse toResponse(Series series);
 }

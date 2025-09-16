@@ -51,7 +51,7 @@ public class SeriesServiceImpl implements SeriesService {
 
         series = getSeries(request, series);
 
-        sendNotification("NEW_SERIES", "Series phim mới: " + series.getTitle());
+        sendNotification("NEW_SERIES", "Series phim mới: " + series);
 
         return seriesMapper.toResponse(series);
     }
